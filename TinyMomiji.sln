@@ -5,6 +5,8 @@ VisualStudioVersion = 15.0.27428.2037
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "TinyMomiji", "TinyMomiji\TinyMomiji.vcxproj", "{6AB47489-B62A-4EF8-905F-D253EEF8FCB2}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ShaderProject", "ShaderProject\ShaderProject.vcxproj", "{3149D8B9-8454-4C26-85B5-7F2F7738C019}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -21,6 +23,14 @@ Global
 		{6AB47489-B62A-4EF8-905F-D253EEF8FCB2}.Release|x64.Build.0 = Release|x64
 		{6AB47489-B62A-4EF8-905F-D253EEF8FCB2}.Release|x86.ActiveCfg = Release|Win32
 		{6AB47489-B62A-4EF8-905F-D253EEF8FCB2}.Release|x86.Build.0 = Release|Win32
+		{3149D8B9-8454-4C26-85B5-7F2F7738C019}.Debug|x64.ActiveCfg = Debug|x64
+		{3149D8B9-8454-4C26-85B5-7F2F7738C019}.Debug|x64.Build.0 = Debug|x64
+		{3149D8B9-8454-4C26-85B5-7F2F7738C019}.Debug|x86.ActiveCfg = Debug|Win32
+		{3149D8B9-8454-4C26-85B5-7F2F7738C019}.Debug|x86.Build.0 = Debug|Win32
+		{3149D8B9-8454-4C26-85B5-7F2F7738C019}.Release|x64.ActiveCfg = Release|x64
+		{3149D8B9-8454-4C26-85B5-7F2F7738C019}.Release|x64.Build.0 = Release|x64
+		{3149D8B9-8454-4C26-85B5-7F2F7738C019}.Release|x86.ActiveCfg = Release|Win32
+		{3149D8B9-8454-4C26-85B5-7F2F7738C019}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
