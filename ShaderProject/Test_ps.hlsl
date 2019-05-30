@@ -1,5 +1,6 @@
 #include "Test.hlsli"
 
+#define sqr(x) (x*x)
 static float	PI				= 3.14159;
 static float3	TEST_LIGHT		= {0.0,1.0,-1.0};
 static float3	TEST_AMBIENT	= {0.1,0.1,0.1};
@@ -20,7 +21,6 @@ struct BSDFIn{
 	float	clear_coat_gloss;
 };
 
-#define sqr(x) (x*x)
 
 float fresnel(float v)
 {
@@ -45,11 +45,21 @@ float GTR2(float NdH, float a)
 	return a2/(PI*sqr(t));
 }
 
+float GTR2_aniso(float NdH, float HdX, float HdY, float ax, float ay)
+{
+	return 1/(PI * ax*ay * sqr(sqr(HdX/ax) + sqr(HdY/ay) + sqr(NdH)));
+}
+
 float smithG_GGX(float NdV, float alpha_g)
 {
 	float a = alpha_g*alpha_g;
 	float b = NdV*NdV;
 	return 1.0/(NdV + sqrt(a+b - a*b));
+}
+
+float smithG_GGX_aniso(float NdV, float VdX, float VdY, float ax, float ay)
+{
+	return 1 / (NdV + sqrt(sqr(VdX*ax) + sqr(VdY*ay) + sqr(NdV)));
 }
 
 float3 physically(in BSDFIn pin)
@@ -73,11 +83,16 @@ float3 physically(in BSDFIn pin)
 	float Fd	= lerp(1.0, Fd90, FL) * lerp(1.0, Fd90, FV);
 
 	// Specular
-	float bi_r	= max(0.001, sqr(pin.roughness));
-	float Ds	= GTR2(NdH, bi_r);
+	float aspect = sqrt(1-pin.anisotropic*0.9);
+	float ax	= max(0.001, sqr(pin.roughness)/aspect);
+	float ay	= max(0.001, sqr(pin.roughness)*aspect);
+	float Ds	= GTR2_aniso(NdH, dot(pin.H,pin.B), dot(pin.H,pin.T), ax, ay);
 	float FH	= fresnel(LdH);
 	float3 Fs	= lerp(spec0, float3(1, 1, 1), FH);
-	float Gs	= smithG_GGX(NdL,bi_r)*smithG_GGX(NdV, bi_r);
+	float Gs	=
+		smithG_GGX_aniso(NdL,dot(pin.L,pin.B), dot(pin.L, pin.T), ax, ay)
+		* smithG_GGX_aniso(NdV, dot(pin.V,pin.B), dot(pin.V,pin.T), ax, ay)
+	;
 
 	// sheen
 	float3 sheen = FH*sqr(pin.sheen);
@@ -104,7 +119,7 @@ float3 phong(in BSDFIn pin)
 	float3 spec0	= lerp(pin.specular*0.08*lerp(float3(1, 1, 1), ctint, pin.specular_tint), pin.albedo, pin.metallic);
 
 
-	return (pin.albedo*(1-pin.metallic) + pow(NdH,lerp(1000,1,pin.roughness))*spec0 ) * NdL;
+	return ((1/PI)*(1-pin.metallic)*pin.albedo + pow(NdH,lerp(1000,1,pin.roughness))*spec0 ) * NdL;
 }
 
 
@@ -114,6 +129,8 @@ PSOut main(VSOut psin)
 
 	BSDFIn bsdf = (BSDFIn)0;
 	bsdf.N = normalize(psin.normal);
+	bsdf.B = normalize(psin.binormal);
+	bsdf.T = normalize(psin.tangent);
 	bsdf.V = normalize(psin.view);
 	bsdf.L = normalize(TEST_LIGHT);
 	bsdf.H = normalize(bsdf.L+bsdf.V);
@@ -121,6 +138,7 @@ PSOut main(VSOut psin)
 	bsdf.albedo		= psin.color.rgb;
 	bsdf.roughness	= 0.05;
 	bsdf.specular	= 0.5;
+	bsdf.anisotropic= 0.0;
 
 	psout.color.rgb	= bsdf.albedo*TEST_AMBIENT + physically(bsdf);
 	psout.color.a	= psin.color.a;

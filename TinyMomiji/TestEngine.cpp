@@ -10,8 +10,9 @@
 #pragma comment(lib,"dxgi.lib")
 #pragma comment(lib,"d3d12.lib")
 #pragma comment(lib,"d3dcompiler.lib")
+#pragma comment(lib,"xinput.lib")
 
-#define THROW_IF_HFAIL(hr,msg) if( FAILED(hr) ){ throw std::runtime_error(msg); }
+
 
 namespace{
 	using Microsoft::WRL::ComPtr;
@@ -21,14 +22,6 @@ namespace{
 	const TCHAR* WNDCLASS_NAME = TEXT("TinyMomiji");
 }
 
-
-struct Vertex
-{
-	XMFLOAT3	position;
-	XMFLOAT2	uv;
-	XMFLOAT4	color;
-	XMFLOAT3	normal;
-};
 
 struct InstancingData
 {
@@ -49,6 +42,7 @@ const D3D12_INPUT_ELEMENT_DESC VERTEX_ELEMENTS[]=
 	{"UV", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
 	{"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
 	{"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+	{"TANGENT", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
 
 	{"INSTANCE_WORLD", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1},
 	{"INSTANCE_WORLD", 1, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1},
@@ -87,187 +81,131 @@ void TestEngine::setRTVCurrent()
 	rdesc.Texture2D.PlaneSlice	= 0;
 
 	auto handle = m_rt_heap->GetCPUDescriptorHandleForHeapStart();
-	m_device->CreateRenderTargetView(m_sc_buffers[m_frame_index].Get(), &rdesc, handle);
+	m_graphics.m_device->CreateRenderTargetView(m_sc_buffers[m_frame_index].Get(), &rdesc, handle);
 }
 
 void TestEngine::initGraphics()
 {
 	HRESULT hr;
 
-#ifdef _DEBUG
+	m_graphics.init();
+	auto device		= m_graphics.m_device.Get();
+	auto factory	= m_graphics.m_dxgi_factory.Get();
+
+	// Create Swapchain
 	{
-		ID3D12Debug* debug_ctrl;
-		if(SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debug_ctrl))))
-		{
-			debug_ctrl->EnableDebugLayer();
-			debug_ctrl->Release();
-		}
-	}
-#endif
+		DXGI_SWAP_CHAIN_DESC	desc;
+		ZeroMemory(&desc, sizeof(desc));
+		desc.BufferCount		= 2;
+		desc.BufferDesc.Width	= m_config.width;
+		desc.BufferDesc.Height	= m_config.height;
+		desc.BufferDesc.Format	= DXGI_FORMAT_R8G8B8A8_UNORM;
+		desc.BufferUsage		= DXGI_USAGE_RENDER_TARGET_OUTPUT;
+		desc.SwapEffect			= DXGI_SWAP_EFFECT_FLIP_DISCARD;
+		desc.OutputWindow		= m_hwnd;
+		desc.SampleDesc.Count	= 1;
+		desc.Windowed			= TRUE;
+		desc.BufferDesc.RefreshRate.Numerator	= 1;
+		desc.BufferDesc.RefreshRate.Denominator	= 60;
 
+		ComPtr<IDXGISwapChain>	sc;
+		hr = factory->CreateSwapChain(m_graphics.m_cmd_queue.Get(), &desc, sc.GetAddressOf());
+		THROW_IF_HFAIL(hr, "CreateSwapChain() Fail.")
 
-	// setup Direct3D 12
-	{
-		hr = D3D12CreateDevice(
-			nullptr, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(m_device.GetAddressOf())
-		);
-		THROW_IF_HFAIL(hr, "D3D12CreateDevice() Fail.")
+		// cast to 3
+		hr = sc->QueryInterface(m_swapchain.GetAddressOf());
+		THROW_IF_HFAIL(hr, "QueryInterface() Fail.")
 
-
-		// Command Queue
-		D3D12_COMMAND_QUEUE_DESC qdesc;
-		qdesc.Flags		= D3D12_COMMAND_QUEUE_FLAG_NONE;
-		qdesc.Type		= D3D12_COMMAND_LIST_TYPE_DIRECT;
-		qdesc.NodeMask	= 0;
-		qdesc.Priority	= 0;
-
-		hr = m_device->CreateCommandQueue(&qdesc, IID_PPV_ARGS(m_cmd_queue.GetAddressOf()));
-		THROW_IF_HFAIL(hr, "CreateCommandQueue() Fail.")
-
-		// Command Allocator
-		hr = m_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(m_cmd_alloc.GetAddressOf()));
-		THROW_IF_HFAIL(hr, "CreateCommandAllocator() Fail.")
-
-		// Command List
-		hr = m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_cmd_alloc.Get(), nullptr, IID_PPV_ARGS(m_cmd_list.GetAddressOf()));
-		THROW_IF_HFAIL(hr, "CreateCommandList() Fail.")
-		m_cmd_list->Close();
-
-		// Fence
-		hr = m_device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(m_fence.GetAddressOf()));
-		THROW_IF_HFAIL(hr, "CreateFence() Fail.")
-
-		m_fence_value = 1;
-		m_fence_event = CreateEventEx(nullptr, TEXT(""), 0, EVENT_ALL_ACCESS);
-		if(!m_fence_event)
-		{
-			throw std::runtime_error("CreateEventEx() Fail.");
-		}
-
-		m_RTV_INC = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+		m_frame_index =  m_swapchain->GetCurrentBackBufferIndex();
 	}
 
-
-	// setup render target
+	// Create RTV
 	{
-		ComPtr<IDXGIFactory4> factory;
-		hr = CreateDXGIFactory(IID_PPV_ARGS(factory.GetAddressOf()));
-		THROW_IF_HFAIL(hr, "CreateDXGIFactory() Fail.")
-
-		// Create Swapchain
-		{
-			DXGI_SWAP_CHAIN_DESC	desc;
-			ZeroMemory(&desc, sizeof(desc));
-			desc.BufferCount		= 2;
-			desc.BufferDesc.Width	= m_config.width;
-			desc.BufferDesc.Height	= m_config.height;
-			desc.BufferDesc.Format	= DXGI_FORMAT_R8G8B8A8_UNORM;
-			desc.BufferUsage		= DXGI_USAGE_RENDER_TARGET_OUTPUT;
-			desc.SwapEffect			= DXGI_SWAP_EFFECT_FLIP_DISCARD;
-			desc.OutputWindow		= m_hwnd;
-			desc.SampleDesc.Count	= 1;
-			desc.Windowed			= TRUE;
-			desc.BufferDesc.RefreshRate.Numerator	= 1;
-			desc.BufferDesc.RefreshRate.Denominator	= 60;
-
-			ComPtr<IDXGISwapChain>	sc;
-			hr = factory->CreateSwapChain(m_cmd_queue.Get(), &desc, sc.GetAddressOf());
-			THROW_IF_HFAIL(hr, "CreateSwapChain() Fail.")
-
-			// cast to 3
-			hr = sc->QueryInterface(m_swapchain.GetAddressOf());
-			THROW_IF_HFAIL(hr, "QueryInterface() Fail.")
-
-			m_frame_index =  m_swapchain->GetCurrentBackBufferIndex();
-		}
+		D3D12_DESCRIPTOR_HEAP_DESC hdesc;
+		ZeroMemory(&hdesc, sizeof(hdesc));
+		hdesc.NumDescriptors	= 1;
+		hdesc.Type				= D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+		hdesc.Flags				= D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 
 		// Create RTV
+		hr = device->CreateDescriptorHeap(&hdesc, IID_PPV_ARGS(m_rt_heap.GetAddressOf()));
+		THROW_IF_HFAIL(hr, "RTV heap creation fail.")
+
+		m_sc_buffers.reserve(2);
+		for(size_t i=0; i<2; i++)
 		{
-			D3D12_DESCRIPTOR_HEAP_DESC hdesc;
-			ZeroMemory(&hdesc, sizeof(hdesc));
-			hdesc.NumDescriptors	= 1;
-			hdesc.Type				= D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-			hdesc.Flags				= D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+			m_sc_buffers.emplace_back();
+			m_swapchain->GetBuffer(i, IID_PPV_ARGS(m_sc_buffers.back().GetAddressOf()));
+			THROW_IF_HFAIL(hr, "GetBuffer() Fail.")
+		}
+		//setRTVCurrent();
 
-			// Create RTV
-			hr = m_device->CreateDescriptorHeap(&hdesc, IID_PPV_ARGS(m_rt_heap.GetAddressOf()));
-			THROW_IF_HFAIL(hr, "RTV heap creation fail.")
-
-			m_sc_buffers.reserve(2);
-			for(size_t i=0; i<2; i++)
-			{
-				m_sc_buffers.emplace_back();
-				m_swapchain->GetBuffer(i, IID_PPV_ARGS(m_sc_buffers.back().GetAddressOf()));
-				THROW_IF_HFAIL(hr, "GetBuffer() Fail.")
-			}
-			//setRTVCurrent();
-
-			// Create DSV
-			hdesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
-			hr = m_device->CreateDescriptorHeap(&hdesc, IID_PPV_ARGS(m_ds_heap.GetAddressOf()));
-			THROW_IF_HFAIL(hr, "RTV heap creation fail.")
+		// Create DSV
+		hdesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+		hr = device->CreateDescriptorHeap(&hdesc, IID_PPV_ARGS(m_ds_heap.GetAddressOf()));
+		THROW_IF_HFAIL(hr, "RTV heap creation fail.")
 
 
-			// Create DS Buffer
-			{
-				D3D12_HEAP_PROPERTIES prop={};
-				prop.Type					= D3D12_HEAP_TYPE_DEFAULT;
-				prop.CPUPageProperty		= D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
-				prop.MemoryPoolPreference	= D3D12_MEMORY_POOL_UNKNOWN;
-				prop.CreationNodeMask		= 1;
-				prop.VisibleNodeMask		= 1;
+		// Create DS Buffer
+		{
+			D3D12_HEAP_PROPERTIES prop={};
+			prop.Type					= D3D12_HEAP_TYPE_DEFAULT;
+			prop.CPUPageProperty		= D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+			prop.MemoryPoolPreference	= D3D12_MEMORY_POOL_UNKNOWN;
+			prop.CreationNodeMask		= 1;
+			prop.VisibleNodeMask		= 1;
 
-				D3D12_RESOURCE_DESC desc ={};
-				desc.Dimension			= D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-				desc.Alignment			= 0;
-				desc.Width				= m_config.width;
-				desc.Height				= m_config.height;
-				desc.DepthOrArraySize	= 1;
-				desc.MipLevels			= 0;
-				desc.Format				= DXGI_FORMAT_D24_UNORM_S8_UINT;
-				desc.SampleDesc.Count	= 1;
-				desc.SampleDesc.Quality	= 0;
-				desc.Flags				= D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
-				desc.Layout				= D3D12_TEXTURE_LAYOUT_UNKNOWN;
+			D3D12_RESOURCE_DESC desc ={};
+			desc.Dimension			= D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+			desc.Alignment			= 0;
+			desc.Width				= m_config.width;
+			desc.Height				= m_config.height;
+			desc.DepthOrArraySize	= 1;
+			desc.MipLevels			= 0;
+			desc.Format				= DXGI_FORMAT_D24_UNORM_S8_UINT;
+			desc.SampleDesc.Count	= 1;
+			desc.SampleDesc.Quality	= 0;
+			desc.Flags				= D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+			desc.Layout				= D3D12_TEXTURE_LAYOUT_UNKNOWN;
 
-				D3D12_CLEAR_VALUE cval ={};
-				cval.Format					= DXGI_FORMAT_D24_UNORM_S8_UINT;
-				cval.DepthStencil.Depth		= 1.f;
-				cval.DepthStencil.Stencil	= 0;
+			D3D12_CLEAR_VALUE cval ={};
+			cval.Format					= DXGI_FORMAT_D24_UNORM_S8_UINT;
+			cval.DepthStencil.Depth		= 1.f;
+			cval.DepthStencil.Stencil	= 0;
 
-				// create buffer
-				hr = m_device->CreateCommittedResource(
-					&prop,
-					D3D12_HEAP_FLAG_NONE,
-					&desc,
-					D3D12_RESOURCE_STATE_DEPTH_WRITE,
-					&cval,
-					IID_PPV_ARGS(m_ds_buffer.GetAddressOf())
-				);
-				THROW_IF_HFAIL(hr, "DS buffer creation fail.")
+			// create buffer
+			hr = device->CreateCommittedResource(
+				&prop,
+				D3D12_HEAP_FLAG_NONE,
+				&desc,
+				D3D12_RESOURCE_STATE_DEPTH_WRITE,
+				&cval,
+				IID_PPV_ARGS(m_ds_buffer.GetAddressOf())
+			);
+			THROW_IF_HFAIL(hr, "DS buffer creation fail.")
 
 
-				D3D12_DEPTH_STENCIL_VIEW_DESC dsd;
-				ZeroMemory(&dsd, sizeof(dsd));
-				dsd.Format			= DXGI_FORMAT_D24_UNORM_S8_UINT;
-				dsd.ViewDimension	= D3D12_DSV_DIMENSION_TEXTURE2D;
-				dsd.Flags			= D3D12_DSV_FLAG_NONE;
+			D3D12_DEPTH_STENCIL_VIEW_DESC dsd;
+			ZeroMemory(&dsd, sizeof(dsd));
+			dsd.Format			= DXGI_FORMAT_D24_UNORM_S8_UINT;
+			dsd.ViewDimension	= D3D12_DSV_DIMENSION_TEXTURE2D;
+			dsd.Flags			= D3D12_DSV_FLAG_NONE;
 
-				// create view
-				m_device->CreateDepthStencilView(
-					m_ds_buffer.Get(),
-					&dsd,
-					m_ds_heap->GetCPUDescriptorHandleForHeapStart()
-				);
-			}
+			// create view
+			device->CreateDepthStencilView(
+				m_ds_buffer.Get(),
+				&dsd,
+				m_ds_heap->GetCPUDescriptorHandleForHeapStart()
+			);
 		}
 	}
+	
 }
 
 void TestEngine::initResources()
 {
 	HRESULT hr;
-
+	auto device = m_graphics.m_device.Get();
 
 	/* Axis of faces
 	   _______
@@ -282,20 +220,6 @@ void TestEngine::initResources()
 	Vertex verts[24];
 	size_t verts_cnt = sizeof(verts)/sizeof(Vertex);
 	{
-		auto setNormal = [](Vertex* p_first, XMVECTOR N, XMVECTOR B)
-		{
-			auto T = XMVector3Cross(B,N);
-
-			for(size_t i=0; i<4; i++)
-			{
-				XMStoreFloat3(&p_first[i].normal, N);
-				XMStoreFloat4(&p_first[i].color, XMVectorSet(1,1,1,1));
-			}
-			XMStoreFloat3(&p_first[0].position, XMVectorAdd(N, XMVectorAdd(B,T)) );
-			XMStoreFloat3(&p_first[1].position, XMVectorAdd(N, XMVectorSubtract(T,B)) );
-			XMStoreFloat3(&p_first[2].position, XMVectorAdd(N, XMVectorSubtract(XMVectorNegate(B),T)) );
-			XMStoreFloat3(&p_first[3].position, XMVectorAdd(N, XMVectorSubtract(B,T)) );
-		};
 
 		/*
 		       Y+                      Y+
@@ -321,17 +245,17 @@ void TestEngine::initResources()
 
 		*/
 		// X+
-		setNormal(&verts[0],	XMVectorSet(1,0,0,1),	XMVectorSet(0,0,1,1));
+		vertexFillQuad(verts, verts_cnt, 0,	XMVectorSet(1,0,0,1),	XMVectorSet(0,0,1,1));
 		// X-
-		setNormal(&verts[4],	XMVectorSet(-1,0,0,1),	XMVectorSet(0,0,-1,1));
+		vertexFillQuad(verts, verts_cnt, 4,	XMVectorSet(-1,0,0,1),	XMVectorSet(0,0,-1,1));
 		// Y+
-		setNormal(&verts[8],	XMVectorSet(0,1,0,1),	XMVectorSet(1,0,0,1));
+		vertexFillQuad(verts, verts_cnt, 8,	XMVectorSet(0,1,0,1),	XMVectorSet(1,0,0,1));
 		// Y-
-		setNormal(&verts[12],	XMVectorSet(0,-1,0,1),	XMVectorSet(-1,0,0,1));
+		vertexFillQuad(verts, verts_cnt, 12,XMVectorSet(0,-1,0,1),	XMVectorSet(-1,0,0,1));
 		// Z+
-		setNormal(&verts[16],	XMVectorSet(0,0,1,1),	XMVectorSet(-1,0,0,1));
+		vertexFillQuad(verts, verts_cnt, 16,XMVectorSet(0,0,1,1),	XMVectorSet(-1,0,0,1));
 		// Z-
-		setNormal(&verts[20],	XMVectorSet(0,0,-1,1),	XMVectorSet(1,0,0,1));
+		vertexFillQuad(verts, verts_cnt, 20,XMVectorSet(0,0,-1,1),	XMVectorSet(1,0,0,1));
 	}
 
 	uint32_t indices[]=
@@ -368,7 +292,7 @@ void TestEngine::initResources()
 		desc.Flags				= D3D12_RESOURCE_FLAG_NONE;
 		desc.Layout				= D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
 
-		hr = m_device->CreateCommittedResource(
+		hr = device->CreateCommittedResource(
 			&prop,
 			D3D12_HEAP_FLAG_NONE,
 			&desc,
@@ -380,7 +304,7 @@ void TestEngine::initResources()
 
 
 		desc.Width = sizeof(indices);
-		hr = m_device->CreateCommittedResource(
+		hr = device->CreateCommittedResource(
 			&prop,
 			D3D12_HEAP_FLAG_NONE,
 			&desc,
@@ -392,7 +316,7 @@ void TestEngine::initResources()
 
 
 		desc.Width = sizeof(InstancingData) * m_config.instacing_count;
-		hr = m_device->CreateCommittedResource(
+		hr = device->CreateCommittedResource(
 			&prop,
 			D3D12_HEAP_FLAG_NONE,
 			&desc,
@@ -459,7 +383,7 @@ void TestEngine::initResources()
 		THROW_IF_HFAIL(hr, "root signature serialization fail.")
 
 
-		hr = m_device->CreateRootSignature(
+		hr = device->CreateRootSignature(
 			0,
 			signature->GetBufferPointer(),
 			signature->GetBufferSize(),
@@ -532,34 +456,18 @@ void TestEngine::initResources()
 		desc.DSVFormat							= DXGI_FORMAT_D24_UNORM_S8_UINT;
 		desc.SampleDesc.Count					= 1;
 
-		hr = m_device->CreateGraphicsPipelineState(&desc, IID_PPV_ARGS(m_pipeline_state.GetAddressOf()));
+		hr = device->CreateGraphicsPipelineState(&desc, IID_PPV_ARGS(m_pipeline_state.GetAddressOf()));
 		THROW_IF_HFAIL(hr, "PSO creation fail.")
-	}
-}
-
-void TestEngine::waitForGpu()
-{
-	const auto f = m_fence_value;
-	auto hr = m_cmd_queue->Signal(m_fence.Get(), f);
-	if(FAILED(hr))
-	{
-		return;
-	}
-	m_fence_value++;
-
-	if(m_fence->GetCompletedValue()<f)
-	{
-		hr = m_fence->SetEventOnCompletion(f, m_fence_event);
-		if(FAILED(hr))
-		{
-			return;
-		}
-		WaitForSingleObject(m_fence_event, INFINITE);
 	}
 }
 
 void TestEngine::draw()
 {
+	auto cmd_alloc	= m_graphics.m_cmd_alloc.Get();
+	auto cmd_queue	= m_graphics.m_cmd_queue.Get();
+	auto cmd_list	= m_graphics.m_cmd_list.Get();
+
+	auto edge = floorf(sqrtf(m_config.instacing_count));
 	for(uint32_t i=0; i<m_config.instacing_count; i++)
 	{
 		float	r		= (float)i/(float)m_config.instacing_count * 20.f;
@@ -567,17 +475,28 @@ void TestEngine::draw()
 		auto	freq	= [&](float m){return (idx+m_time_counted)*m; };
 		float	tan_f	= tanf(idx);
 
-		auto pos = XMVectorSet(
-			cosf(freq(0.1f)*tan_f)*r,
-			sinf(freq( sinf((float)idx)*0.1f )*tan_f)*r,
-			-sinf(freq(0.1f)*tan_f)*r,
-			1.f
+		auto pos =
+		XMVectorLerp(
+			XMVectorSet(
+				cosf(freq(0.1f)*tan_f)*r,
+				sinf(freq( sinf((float)idx)*0.1f )*tan_f)*r,
+				-sinf(freq(0.1f)*tan_f)*r,
+				1.f
+			),
+			XMVectorSet(
+				2.2f * fmodf(i,edge),
+				0.f,
+				2.2f * (float)(i/(UINT32)edge),
+				1.f
+			),
+			m_phase
 		);
+		auto rot = XMVectorLerp(XMQuaternionRotationRollPitchYawFromVector(pos), XMQuaternionIdentity(), m_phase);
 
 		auto it = &((InstancingData*)m_instacing_ptr)[i];
 		XMStoreFloat4x4(
 			&it->world,
-			XMMatrixTransformation(XMVectorZero(), XMQuaternionIdentity(), XMVectorSet(1,1,1,1), XMVectorZero(), XMQuaternionRotationRollPitchYawFromVector(pos), pos)
+			XMMatrixTransformation(XMVectorZero(), XMQuaternionIdentity(), XMVectorSet(1,1,1,1), XMVectorZero(), rot, pos)
 		);
 		XMStoreFloat4(
 			&it->color,
@@ -589,11 +508,11 @@ void TestEngine::draw()
 	setRTVCurrent();
 
 	do{
-		m_cmd_alloc->Reset();
-		m_cmd_list->Reset(m_cmd_alloc.Get(), m_pipeline_state.Get());
+		cmd_alloc->Reset();
+		cmd_list->Reset(cmd_alloc, m_pipeline_state.Get());
 
 		// setup pso
-		m_cmd_list->SetGraphicsRootSignature(m_root_signature.Get());
+		cmd_list->SetGraphicsRootSignature(m_root_signature.Get());
 
 		// set shader uniforms
 		{
@@ -606,7 +525,7 @@ void TestEngine::draw()
 
 			XMStoreFloat4x4(
 				&su.view,
-				XMMatrixLookToLH(XMLoadFloat3(&m_cam_pos), XMVectorSet(0,0,1,0), XMVectorSet(0, 1, 0, 0))
+				XMMatrixLookToLH(XMLoadFloat3(&m_cam_pos), look_forward, look_up)
 			);
 			XMStoreFloat4x4(
 				&su.projection,
@@ -614,7 +533,7 @@ void TestEngine::draw()
 			);
 			su.camera_position = m_cam_pos;
 
-			m_cmd_list->SetGraphicsRoot32BitConstants(0, sizeof(ShaderUniforms)/4, &su, 0);
+			cmd_list->SetGraphicsRoot32BitConstants(0, sizeof(ShaderUniforms)/4, &su, 0);
 		}
 
 		D3D12_VIEWPORT vp;
@@ -623,13 +542,13 @@ void TestEngine::draw()
 		vp.TopLeftX = vp.TopLeftY = 0;
 		vp.MinDepth = 0.f;
 		vp.MaxDepth	= 1.f;
-		m_cmd_list->RSSetViewports(1, &vp);
+		cmd_list->RSSetViewports(1, &vp);
 
 		D3D12_RECT sr;
 		sr.left		= sr.top = 0;
 		sr.right	= m_config.width;
 		sr.bottom	= m_config.height;
-		m_cmd_list->RSSetScissorRects(1, &sr);
+		cmd_list->RSSetScissorRects(1, &sr);
 
 
 		// barrier
@@ -641,40 +560,41 @@ void TestEngine::draw()
 		bar[0].Transition.StateBefore	= D3D12_RESOURCE_STATE_PRESENT;
 		bar[0].Transition.StateAfter	= D3D12_RESOURCE_STATE_RENDER_TARGET;
 		bar[0].Transition.Subresource	= D3D12_RESOURCE_BARRIER_FLAG_NONE;
-		m_cmd_list->ResourceBarrier(1, bar);
+		cmd_list->ResourceBarrier(1, bar);
 
 		auto rt_handle = m_rt_heap->GetCPUDescriptorHandleForHeapStart();
 		auto ds_handle = m_ds_heap->GetCPUDescriptorHandleForHeapStart();
-		m_cmd_list->OMSetRenderTargets(1, &rt_handle, TRUE, &ds_handle);
+		cmd_list->OMSetRenderTargets(1, &rt_handle, TRUE, &ds_handle);
 
 		const float cval[] ={0.5f,0.5f,0.5f,1.f};
-		m_cmd_list->ClearRenderTargetView(rt_handle, cval, 0, nullptr);
-		m_cmd_list->ClearDepthStencilView(ds_handle, D3D12_CLEAR_FLAG_DEPTH|D3D12_CLEAR_FLAG_STENCIL, 1.f, 0, 0, nullptr);
+		cmd_list->ClearRenderTargetView(rt_handle, cval, 0, nullptr);
+		cmd_list->ClearDepthStencilView(ds_handle, D3D12_CLEAR_FLAG_DEPTH|D3D12_CLEAR_FLAG_STENCIL, 1.f, 0, 0, nullptr);
 		{
-			m_cmd_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-			m_cmd_list->IASetVertexBuffers(0, 2, m_vertex_views);
-			m_cmd_list->IASetIndexBuffer(&m_index_view);
+			cmd_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+			cmd_list->IASetVertexBuffers(0, 2, m_vertex_views);
+			cmd_list->IASetIndexBuffer(&m_index_view);
 
-			m_cmd_list->DrawIndexedInstanced(m_index_count, m_config.instacing_count, 0, 0, 0);
+			cmd_list->DrawIndexedInstanced(m_index_count, m_config.instacing_count, 0, 0, 0);
 		}
 
 		bar[0].Transition.StateBefore	= bar[0].Transition.StateAfter;
 		bar[0].Transition.StateAfter	= D3D12_RESOURCE_STATE_PRESENT;
-		m_cmd_list->ResourceBarrier(1, bar);
+		cmd_list->ResourceBarrier(1, bar);
 
-		m_cmd_list->Close();
+		cmd_list->Close();
 	}
 	while(false);
 
-	ID3D12CommandList* cmd_lists[] ={m_cmd_list.Get()};
-	m_cmd_queue->ExecuteCommandLists(1, cmd_lists);
+	ID3D12CommandList* cmd_lists[] ={cmd_list};
+	cmd_queue->ExecuteCommandLists(1, cmd_lists);
 
 	m_swapchain->Present(1, 0);
-	waitForGpu();
+	m_graphics.waitForDone();
 }
 
 int TestEngine::run(int argc, char** argv)
 {
+	m_phase			= 0.f;
 	m_time_delta	= m_time_counted = 0;
 	m_time_prev		= Timer::now();
 	m_config.width	= 1280;
@@ -683,7 +603,7 @@ int TestEngine::run(int argc, char** argv)
 	m_cnt			= 0;
 	m_instance		= GetModuleHandle(nullptr);
 
-	m_config.instacing_count	= 40;
+	m_config.instacing_count	= 49;
 	m_cam_pos.x = 0;
 	m_cam_pos.y = 0;
 	m_cam_pos.z = -40.f;
@@ -766,6 +686,55 @@ int TestEngine::run(int argc, char** argv)
 		m_time_delta	= dur.count();
 		m_time_counted	+= m_time_delta;
 
+
+		auto xr = XInputGetState(0, &m_xinput_state);
+		if(xr==ERROR_SUCCESS)
+		{
+			auto getNormalizedInput = [](float x, float y, float z)->auto
+			{
+				auto move = XMVectorSet(x,y,z,1.f);
+				float	magnitude		= XMVectorGetX(XMVector3Length(move));
+				auto	move_norm		= XMVectorScale(move, 1/magnitude);
+				float	magnitude_norm	= 0.f;
+				if(magnitude>(float)XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE)
+				{
+					//clip the magnitude at its expected maximum value 
+					magnitude = (magnitude>32767.f) ? 32767.f : magnitude;
+
+					// adjust magnitude relative to the end of the dead zone
+					magnitude -= (float)XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE;
+
+					//optionally normalize the magnitude with respect to its expected range 
+					//giving a magnitude value of 0.0 to 1.0 
+					magnitude_norm = magnitude/(32767.f-(float)XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE);
+				}
+				else{
+					magnitude		= 0;
+					magnitude_norm	= 0;
+				}
+
+				return XMVectorScale(move_norm, magnitude_norm);
+			};
+			auto move	= getNormalizedInput(m_xinput_state.Gamepad.sThumbLX, 0.f, m_xinput_state.Gamepad.sThumbLY);
+			auto torque	= getNormalizedInput(-m_xinput_state.Gamepad.sThumbRY, m_xinput_state.Gamepad.sThumbRX, 0.f);
+			
+			auto rot	= XMLoadFloat3(&m_cam_rot);
+
+			move = XMVectorAdd(
+				XMVector3Rotate(move, XMQuaternionRotationRollPitchYawFromVector(rot)),
+				XMVector3Rotate(move, XMQuaternionRotationRollPitchYawFromVector(rot))
+			);
+
+			XMStoreFloat3(
+				&m_cam_pos,
+				XMVectorAdd(XMLoadFloat3(&m_cam_pos), XMVectorScale(move, m_time_delta*5.f))
+			);
+			XMStoreFloat3(
+				&m_cam_rot,
+				XMVectorAdd(rot, XMVectorScale(torque, m_time_delta*2.f))
+			);
+			m_phase = (float)m_xinput_state.Gamepad.bRightTrigger/(float)MAXBYTE;
+		}
 		draw();
 		std::this_thread::yield();
 	}

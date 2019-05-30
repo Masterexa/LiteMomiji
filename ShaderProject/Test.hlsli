@@ -38,6 +38,7 @@ struct Vertex{
 	float4		color			: COLOR;
 	float2		uv0				: UV;
 	float3		normal			: NORMAL;
+	float3		tangent			: TANGENT;
 	float4x4	instance_world	: INSTANCE_WORLD;
 	float4		instance_color	: INSTANCE_COLOR;
 };
@@ -46,9 +47,11 @@ struct VSOut
 {
 	float4	position	: SV_Position;
 	float3	normal		: TEXCOORD0;
-	float3	view		: TEXCOORD1;
-	float2	uv0			: TEXCOORD2;
-	float4	color		: TEXCOORD3;
+	float3	binormal	: TEXCOORD1;
+	float3	tangent		: TEXCOORD2;
+	float3	view		: TEXCOORD3;
+	float2	uv0			: TEXCOORD4;
+	float4	color		: TEXCOORD5;
 };
 
 struct PSOut
