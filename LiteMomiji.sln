@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
 VisualStudioVersion = 15.0.27428.2037
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "TinyMomiji", "TinyMomiji\TinyMomiji.vcxproj", "{6AB47489-B62A-4EF8-905F-D253EEF8FCB2}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "LiteMomiji", "LiteMomiji\LiteMomiji.vcxproj", "{6AB47489-B62A-4EF8-905F-D253EEF8FCB2}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ShaderProject", "ShaderProject\ShaderProject.vcxproj", "{3149D8B9-8454-4C26-85B5-7F2F7738C019}"
 EndProject
