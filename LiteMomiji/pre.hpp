@@ -18,6 +18,16 @@ struct Vertex{
 	DirectX::XMFLOAT3	tangent;
 };
 
-class Graphics;
+struct Graphics;
+struct Mesh;
+struct Model;
+struct Material;
+
+template<typename T>
+constexpr T getAlignedSize(T size, T align)
+{
+	return ((size%align!=0) ? (align-size%align) : 0)+size;
+}
+
 
 #define THROW_IF_HFAIL(hr,msg) if( FAILED(hr) ){ throw std::runtime_error(msg); }

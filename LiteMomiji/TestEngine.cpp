@@ -5,15 +5,13 @@
 #include <DirectXMath.h>
 #include <DirectXPackedVector.h>
 #include <DirectXColors.h>
+#include <DirectXCollision.h>
 #include <d3dcompiler.h>
 
 #pragma comment(lib,"dxgi.lib")
 #pragma comment(lib,"d3d12.lib")
 #pragma comment(lib,"d3dcompiler.lib")
 #pragma comment(lib,"xinput.lib")
-
-
-
 namespace{
 	using Microsoft::WRL::ComPtr;
 	using namespace DirectX;
@@ -468,15 +466,14 @@ void TestEngine::draw()
 	auto cmd_list	= m_graphics.m_cmd_list.Get();
 
 	auto edge = floorf(sqrtf(m_config.instacing_count));
-	for(uint32_t i=0; i<m_config.instacing_count; i++)
+	for(uint32_t i=0; i<m_config.instacing_count-1; i++)
 	{
 		float	r		= (float)i/(float)m_config.instacing_count * 20.f;
 		float	idx		= (float)i*10.f;
 		auto	freq	= [&](float m){return (idx+m_time_counted)*m; };
 		float	tan_f	= tanf(idx);
 
-		auto pos =
-		XMVectorLerp(
+		auto pos = XMVectorLerp(
 			XMVectorSet(
 				cosf(freq(0.1f)*tan_f)*r,
 				sinf(freq( sinf((float)idx)*0.1f )*tan_f)*r,
@@ -491,7 +488,10 @@ void TestEngine::draw()
 			),
 			m_phase
 		);
+		pos = XMVectorAdd(XMVectorSet(0, 1, 0, 0), pos);
 		auto rot = XMVectorLerp(XMQuaternionRotationRollPitchYawFromVector(pos), XMQuaternionIdentity(), m_phase);
+
+
 
 		auto it = &((InstancingData*)m_instacing_ptr)[i];
 		XMStoreFloat4x4(
@@ -500,7 +500,20 @@ void TestEngine::draw()
 		);
 		XMStoreFloat4(
 			&it->color,
-			XMColorSRGBToRGB(XMColorHSVToRGB(XMVectorSet(fmodf(idx*0.01f,1.f), 0.6f, 1.0f, 1.0f)))
+			XMColorSRGBToRGB(XMColorHSVToRGB(XMVectorSet(fmodf(idx*0.01f,1.f), 0.8f, 1.0f, 1.0f)))
+		);
+	}
+	// draw plane
+	{
+		auto it = &((InstancingData*)m_instacing_ptr)[m_config.instacing_count-1];
+
+		XMStoreFloat4x4(
+			&it->world,
+			XMMatrixTransformation(XMVectorZero(), XMQuaternionIdentity(), XMVectorSet(100, 0.1, 100, 1), XMVectorZero(), XMQuaternionIdentity(), XMVectorZero())
+		);
+		XMStoreFloat4(
+			&it->color,
+			XMColorSRGBToRGB(XMColorHSVToRGB(XMVectorSet(0.0f, 0.0f, 0.5f,1.0f)))
 		);
 	}
 
@@ -605,7 +618,7 @@ int TestEngine::run(int argc, char** argv)
 
 	m_config.instacing_count	= 49;
 	m_cam_pos.x = 0;
-	m_cam_pos.y = 0;
+	m_cam_pos.y = 1.f;
 	m_cam_pos.z = -40.f;
 	m_cam_rot.x = m_cam_rot.y = m_cam_rot.z = 0.f;
 
@@ -720,10 +733,10 @@ int TestEngine::run(int argc, char** argv)
 			
 			auto rot	= XMLoadFloat3(&m_cam_rot);
 
-			move = XMVectorAdd(
+			move = XMVectorMultiply(XMVectorSet(1,0,1,1), XMVectorAdd(
 				XMVector3Rotate(move, XMQuaternionRotationRollPitchYawFromVector(rot)),
 				XMVector3Rotate(move, XMQuaternionRotationRollPitchYawFromVector(rot))
-			);
+			));
 
 			XMStoreFloat3(
 				&m_cam_pos,
