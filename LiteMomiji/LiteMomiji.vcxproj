@@ -118,6 +118,7 @@
   <ItemGroup>
     <ClInclude Include="Engine.hpp" />
     <ClInclude Include="Graphics.hpp" />
+    <ClInclude Include="GraphicsContext.hpp" />
     <ClInclude Include="Mesh.hpp" />
     <ClInclude Include="Model.hpp" />
     <ClInclude Include="pre.hpp" />
@@ -125,8 +126,10 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Graphics.cpp" />
+    <ClCompile Include="GraphicsContext.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Mesh.cpp" />
+    <ClCompile Include="ModelReader.cpp" />
     <ClCompile Include="TestEngine.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

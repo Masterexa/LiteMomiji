@@ -9,6 +9,7 @@
 #include <DirectXPackedVector.h>
 #include <DirectXColors.h>
 #include <stdexcept>
+#include <memory>
 
 struct Vertex{
 	DirectX::XMFLOAT3	position;

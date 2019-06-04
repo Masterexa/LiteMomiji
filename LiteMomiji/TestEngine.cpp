@@ -215,11 +215,11 @@ void TestEngine::initResources()
 		uint32_t	idxs[]={0,1,2,2,3,0};
 		vertexFillQuad(mesh_vrts, 4, 0, XMVectorSet(0, 1, 0, 1), XMVectorSet(1, 0, 0, 1));
 
-		desc.p_verts		= mesh_vrts;
+		desc.verts_ptr		= mesh_vrts;
 		desc.verts_count	= 4;
-		desc.p_indices		= idxs;
+		desc.indices_ptr		= idxs;
 		desc.indices_count	= 6;
-		desc.p_submesh_pairs= nullptr;
+		desc.submesh_pairs_ptr= nullptr;
 		desc.submesh_pairs_count = 0;
 
 		m_mesh_plane = std::make_unique<Mesh>();
@@ -293,11 +293,11 @@ void TestEngine::initResources()
 
 
 		MeshInitDesc desc={};
-		desc.p_verts		= verts;
+		desc.verts_ptr		= verts;
 		desc.verts_count	= verts_cnt;
-		desc.p_indices		= indices;
+		desc.indices_ptr		= indices;
 		desc.indices_count	= indices_cnt;
-		desc.p_submesh_pairs= nullptr;
+		desc.submesh_pairs_ptr= nullptr;
 		desc.submesh_pairs_count = 0;
 
 		m_mesh_cube = std::make_unique<Mesh>();
@@ -686,13 +686,14 @@ int TestEngine::run(int argc, char** argv)
 		}
 
 		// game process
-		//printf("\r Cnt : %d", m_cnt++);
 
 		auto now = Timer::now();
 		std::chrono::duration<double> dur = now-m_time_prev;
 		m_time_prev		= now;
 		m_time_delta	= dur.count();
 		m_time_counted	+= m_time_delta;
+
+		printf("\r FPS : %f", 1.0/m_time_delta);
 
 
 		auto xr = XInputGetState(0, &m_xinput_state);

@@ -36,13 +36,10 @@ class TestEngine{
 			std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>>	m_sc_buffers;
 			UINT m_frame_index;
 
-			Microsoft::WRL::ComPtr<ID3D12Resource>	m_vertex_buffer;
-			Microsoft::WRL::ComPtr<ID3D12Resource>	m_index_buffer;
+			// Mesh State
 			Microsoft::WRL::ComPtr<ID3D12Resource>	m_instacing_buffer;
 			std::vector<D3D12_VERTEX_BUFFER_VIEW>	m_vertex_views;
-			D3D12_INDEX_BUFFER_VIEW		m_index_view;
-			uint32_t					m_index_count;
-			UINT8*						m_instacing_ptr;
+			UINT8*									m_instacing_ptr;
 
 			Microsoft::WRL::ComPtr<ID3D12RootSignature>	m_root_signature;
 			Microsoft::WRL::ComPtr<ID3D12PipelineState>	m_pipeline_state;

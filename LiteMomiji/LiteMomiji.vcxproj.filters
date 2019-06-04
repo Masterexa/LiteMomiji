@@ -36,6 +36,9 @@
     <ClInclude Include="Model.hpp">
       <Filter>Source Files</Filter>
     </ClInclude>
+    <ClInclude Include="GraphicsContext.hpp">
+      <Filter>Source Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Graphics.cpp">
@@ -48,6 +51,12 @@
       <Filter>Source Files\&lt;src&gt;</Filter>
     </ClCompile>
     <ClCompile Include="main.cpp">
+      <Filter>Source Files\&lt;src&gt;</Filter>
+    </ClCompile>
+    <ClCompile Include="ModelReader.cpp">
+      <Filter>Source Files\&lt;src&gt;</Filter>
+    </ClCompile>
+    <ClCompile Include="GraphicsContext.cpp">
       <Filter>Source Files\&lt;src&gt;</Filter>
     </ClCompile>
   </ItemGroup>

@@ -11,12 +11,18 @@ struct IndexPair
 
 struct MeshInitDesc
 {
-	Vertex*		p_verts;
+	Vertex*		verts_ptr;
 	size_t		verts_count;
-	uint32_t*	p_indices;
+	uint32_t*	indices_ptr;
 	size_t		indices_count;
-	IndexPair*	p_submesh_pairs;
+	IndexPair*	submesh_pairs_ptr;
 	size_t		submesh_pairs_count;
+};
+
+struct MeshDrawQueue
+{
+	Mesh*		mesh;
+	uint32_t	submesh_num;
 };
 
 struct Mesh{
@@ -24,8 +30,7 @@ struct Mesh{
 	/* Instance */
 		/* Fields */
 			Microsoft::WRL::ComPtr<ID3D12Heap>		m_mesh_heap;
-			Microsoft::WRL::ComPtr<ID3D12Resource>	m_vertex_buffer;
-			Microsoft::WRL::ComPtr<ID3D12Resource>	m_index_buffer;
+			Microsoft::WRL::ComPtr<ID3D12Resource>	m_combined_buffer;
 			D3D12_VERTEX_BUFFER_VIEW	m_vb_view;
 			D3D12_INDEX_BUFFER_VIEW		m_ib_view;
 			std::vector<IndexPair>		m_submesh_pairs;

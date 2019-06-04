@@ -35,10 +35,8 @@ HRESULT Mesh::init(Graphics* graphics, MeshInitDesc* p_desc)
 
 	auto	p_device		= graphics->m_device.Get();
 	UINT64	vertex_size		= sizeof(Vertex)*p_desc->verts_count;
-	auto	index_offset	= getAlignedSize<UINT64>(vertex_size, D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT);
 	UINT64	index_size		= sizeof(uint32_t)*p_desc->indices_count;
-	auto	heap_size		= getAlignedSize<UINT64>(index_offset+index_size, D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT);
-
+	auto	heap_size		= getAlignedSize<UINT64>(vertex_size+index_size, D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT);
 
 	// create the heap for buffers
 	{
@@ -66,7 +64,7 @@ HRESULT Mesh::init(Graphics* graphics, MeshInitDesc* p_desc)
 		D3D12_RESOURCE_DESC	desc={};
 		desc.Dimension			= D3D12_RESOURCE_DIMENSION_BUFFER;
 		desc.Alignment			= 0;
-		desc.Width				= vertex_size;
+		desc.Width				= vertex_size+index_size;
 		desc.Height				= 1;
 		desc.DepthOrArraySize	= 1;
 		desc.MipLevels			= 1;
@@ -83,22 +81,7 @@ HRESULT Mesh::init(Graphics* graphics, MeshInitDesc* p_desc)
 			&desc,
 			D3D12_RESOURCE_STATE_GENERIC_READ,
 			nullptr,
-			IID_PPV_ARGS(m_vertex_buffer.GetAddressOf())
-		);
-		if(FAILED(hr))
-		{
-			return hr;
-		}
-
-		// create index buffer
-		desc.Width		= index_size;
-		hr = p_device->CreatePlacedResource(
-			m_mesh_heap.Get(),
-			index_offset,
-			&desc,
-			D3D12_RESOURCE_STATE_GENERIC_READ,
-			nullptr,
-			IID_PPV_ARGS(m_index_buffer.GetAddressOf())
+			IID_PPV_ARGS(m_combined_buffer.GetAddressOf())
 		);
 		if(FAILED(hr))
 		{
@@ -108,20 +91,18 @@ HRESULT Mesh::init(Graphics* graphics, MeshInitDesc* p_desc)
 
 	// copy resources
 	{
+		// copy to temporary buffer
+		std::unique_ptr<uint8_t[]> temporay(new uint8_t[vertex_size+index_size]);
+		memcpy(temporay.get(), p_desc->verts_ptr, vertex_size);
+		memcpy(temporay.get()+vertex_size, p_desc->indices_ptr, index_size);
+
 		D3D12_SUBRESOURCE_DATA	subres={};
-		subres.pData		= p_desc->p_verts;
+		subres.pData		= temporay.get();
 		subres.RowPitch		= 0;
 		subres.SlicePitch	= 0;
 
-		// copy vertices to GPU
-		auto rt = graphics->updateSubresources(m_vertex_buffer.Get(), 0, 1, &subres);
-		if(!rt)
-		{
-			return E_FAIL;
-		}
-
-		subres.pData = p_desc->p_indices;
-		rt = graphics->updateSubresources(m_index_buffer.Get(), 0, 1, &subres);
+		// copy mesh to GPU
+		auto rt = graphics->updateSubresources(m_combined_buffer.Get(), 0, 1, &subres);
 		if(!rt)
 		{
 			return E_FAIL;
@@ -130,18 +111,20 @@ HRESULT Mesh::init(Graphics* graphics, MeshInitDesc* p_desc)
 
 	// create views
 	{
-		m_vb_view.BufferLocation	= m_vertex_buffer->GetGPUVirtualAddress();
+		auto address = m_combined_buffer->GetGPUVirtualAddress();
+		m_vb_view.BufferLocation	= address;
 		m_vb_view.StrideInBytes		= sizeof(Vertex);
-		m_vb_view.SizeInBytes		= sizeof(Vertex)*p_desc->verts_count;
+		m_vb_view.SizeInBytes		= vertex_size;
 
-		m_ib_view.BufferLocation	= m_index_buffer->GetGPUVirtualAddress();
+		address += vertex_size;
+		m_ib_view.BufferLocation	= address;
 		m_ib_view.Format			= DXGI_FORMAT_R32_UINT;
-		m_ib_view.SizeInBytes		= sizeof(uint32_t)*p_desc->indices_count;
+		m_ib_view.SizeInBytes		= index_size;
 	}
 
 	// setup submeshes
 	{
-		auto cnt = 1 + ((p_desc->p_submesh_pairs && p_desc->submesh_pairs_count) ? (p_desc->submesh_pairs_count) : (0));
+		auto cnt = 1 + ((p_desc->submesh_pairs_ptr && p_desc->submesh_pairs_count) ? (p_desc->submesh_pairs_count) : (0));
 
 		m_submesh_pairs.reserve(cnt);
 		m_submesh_pairs.resize(cnt);
@@ -151,7 +134,9 @@ HRESULT Mesh::init(Graphics* graphics, MeshInitDesc* p_desc)
 
 		for(size_t i=1; i<cnt; i++)
 		{
-			m_submesh_pairs[i] = p_desc->p_submesh_pairs[i-1];
+			m_submesh_pairs[i] = p_desc->submesh_pairs_ptr[i-1];
 		}
 	}
+
+	return S_OK;
 }
