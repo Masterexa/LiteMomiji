@@ -42,7 +42,6 @@ void GraphicsContext::init(Graphics* graph)
 			it.Transition.StateAfter	= D3D12_RESOURCE_STATE_RENDER_TARGET;
 			it.Transition.Subresource	= D3D12_RESOURCE_BARRIER_FLAG_NONE;
 		}
-		ZeroMemory(&m_clear_value, sizeof(m_clear_value));
 		m_rtv_count		= 0;
 		m_ds_enabled	= false;
 	}
@@ -69,7 +68,6 @@ void GraphicsContext::setRenderTarget(ID3D12Resource** rt_res, D3D12_RENDER_TARG
 	m_ds_enabled = ds_res!=nullptr;
 	if(m_ds_enabled)
 	{
-		m_clear_value.Format = ds_desc->Format;
 		device->CreateDepthStencilView(
 			ds_res,
 			ds_desc,
@@ -105,4 +103,21 @@ void GraphicsContext::end()
 	m_cmd_list->ResourceBarrier(m_rtv_count, m_rtv_barriers);
 
 	m_cmd_list->Close();
+}
+
+void GraphicsContext::clearRenderTarget(uint32_t num, const FLOAT rgba[4], UINT rect_cnt, const D3D12_RECT* rects)
+{
+	auto handle = m_rtv_heap->GetCPUDescriptorHandleForHeapStart();
+	handle.ptr	+= m_graphics->m_RTV_INC*num;
+
+	m_cmd_list->ClearRenderTargetView(handle, rgba, rect_cnt, rects);
+}
+
+void GraphicsContext::clearDepthStencil(D3D12_CLEAR_FLAGS flags, float depth, uint8_t stencil, UINT rect_cnt, const D3D12_RECT* rects)
+{
+	if(!m_ds_enabled)
+	{
+		return;
+	}
+	m_cmd_list->ClearDepthStencilView(m_dsv_heap->GetCPUDescriptorHandleForHeapStart(), flags, depth, stencil, rect_cnt, rects);
 }

@@ -16,7 +16,6 @@ struct GraphicsContext{
 			Microsoft::WRL::ComPtr<ID3D12DescriptorHeap>	m_rtv_heap;
 			Microsoft::WRL::ComPtr<ID3D12DescriptorHeap>	m_dsv_heap;
 			D3D12_RESOURCE_BARRIER		m_rtv_barriers[8];
-			D3D12_CLEAR_VALUE			m_clear_value;
 			size_t						m_rtv_count;
 			bool						m_ds_enabled;
 
@@ -28,4 +27,7 @@ struct GraphicsContext{
 
 			void begin();
 			void end();
+
+			void clearRenderTarget(uint32_t num, const FLOAT rgba[4], UINT rect_cnt, const D3D12_RECT* rects);
+			void clearDepthStencil(D3D12_CLEAR_FLAGS flag, float depth, uint8_t stencil, UINT rect_cnt, const D3D12_RECT* rects);
 };

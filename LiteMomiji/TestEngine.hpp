@@ -4,6 +4,7 @@
 #include "Engine.hpp"
 #include "Mesh.hpp"
 #include "Graphics.hpp"
+#include "GraphicsContext.hpp"
 #include <Xinput.h>
 #include <vector>
 #include <chrono>
@@ -28,11 +29,10 @@ class TestEngine{
 
 			Config		m_config;
 			Graphics	m_graphics;
+			std::unique_ptr<GraphicsContext>	m_gfx_context;
 
 			Microsoft::WRL::ComPtr<IDXGISwapChain3>				m_swapchain;
 			Microsoft::WRL::ComPtr<ID3D12Resource>				m_ds_buffer;
-			Microsoft::WRL::ComPtr<ID3D12DescriptorHeap>		m_ds_heap;
-			Microsoft::WRL::ComPtr<ID3D12DescriptorHeap>		m_rt_heap;
 			std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>>	m_sc_buffers;
 			UINT m_frame_index;
 
