@@ -9,7 +9,7 @@ struct IndexPair
 	uint32_t	count;
 };
 
-struct MeshDesc
+struct MeshInitDesc
 {
 	Vertex*		p_verts;
 	size_t		verts_count;
@@ -23,7 +23,7 @@ struct Mesh{
 
 	/* Instance */
 		/* Fields */
-			Microsoft::WRL::ComPtr<ID3D12Heap>		m_model_heap;
+			Microsoft::WRL::ComPtr<ID3D12Heap>		m_mesh_heap;
 			Microsoft::WRL::ComPtr<ID3D12Resource>	m_vertex_buffer;
 			Microsoft::WRL::ComPtr<ID3D12Resource>	m_index_buffer;
 			D3D12_VERTEX_BUFFER_VIEW	m_vb_view;
@@ -31,7 +31,7 @@ struct Mesh{
 			std::vector<IndexPair>		m_submesh_pairs;
 
 		/* Inits */
-			HRESULT init(Graphics* graphics, MeshDesc* p_desc);
+			HRESULT init(Graphics* graphics, MeshInitDesc* p_desc);
 };
 
 

@@ -30,4 +30,4 @@ constexpr T getAlignedSize(T size, T align)
 }
 
 
-#define THROW_IF_HFAIL(hr,msg) if( FAILED(hr) ){ throw std::runtime_error(msg); }
+#define THROW_IF_HFAILED(hr,msg) if( FAILED(hr) ){ throw std::runtime_error(msg); }

@@ -7,6 +7,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "LiteMomiji", "LiteMomiji\Li
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ShaderProject", "ShaderProject\ShaderProject.vcxproj", "{3149D8B9-8454-4C26-85B5-7F2F7738C019}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ShaderProjects", "ShaderProjects", "{B10568C2-F92C-4650-AFCA-5BDD813FDD84}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -34,6 +36,9 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{3149D8B9-8454-4C26-85B5-7F2F7738C019} = {B10568C2-F92C-4650-AFCA-5BDD813FDD84}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {FF68FC05-AE3A-4622-BDAF-627BC8709BDE}

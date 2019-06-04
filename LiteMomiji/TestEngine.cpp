@@ -108,11 +108,11 @@ void TestEngine::initGraphics()
 
 		ComPtr<IDXGISwapChain>	sc;
 		hr = factory->CreateSwapChain(m_graphics.m_cmd_queue.Get(), &desc, sc.GetAddressOf());
-		THROW_IF_HFAIL(hr, "CreateSwapChain() Fail.")
+		THROW_IF_HFAILED(hr, "CreateSwapChain() Fail.")
 
 		// cast to 3
 		hr = sc->QueryInterface(m_swapchain.GetAddressOf());
-		THROW_IF_HFAIL(hr, "QueryInterface() Fail.")
+		THROW_IF_HFAILED(hr, "QueryInterface() Fail.")
 
 		m_frame_index =  m_swapchain->GetCurrentBackBufferIndex();
 	}
@@ -127,21 +127,21 @@ void TestEngine::initGraphics()
 
 		// Create RTV
 		hr = device->CreateDescriptorHeap(&hdesc, IID_PPV_ARGS(m_rt_heap.GetAddressOf()));
-		THROW_IF_HFAIL(hr, "RTV heap creation fail.")
+		THROW_IF_HFAILED(hr, "RTV heap creation fail.")
 
 		m_sc_buffers.reserve(2);
 		for(size_t i=0; i<2; i++)
 		{
 			m_sc_buffers.emplace_back();
 			m_swapchain->GetBuffer(i, IID_PPV_ARGS(m_sc_buffers.back().GetAddressOf()));
-			THROW_IF_HFAIL(hr, "GetBuffer() Fail.")
+			THROW_IF_HFAILED(hr, "GetBuffer() Fail.")
 		}
 		//setRTVCurrent();
 
 		// Create DSV
 		hdesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
 		hr = device->CreateDescriptorHeap(&hdesc, IID_PPV_ARGS(m_ds_heap.GetAddressOf()));
-		THROW_IF_HFAIL(hr, "RTV heap creation fail.")
+		THROW_IF_HFAILED(hr, "RTV heap creation fail.")
 
 
 		// Create DS Buffer
@@ -180,7 +180,7 @@ void TestEngine::initGraphics()
 				&cval,
 				IID_PPV_ARGS(m_ds_buffer.GetAddressOf())
 			);
-			THROW_IF_HFAIL(hr, "DS buffer creation fail.")
+			THROW_IF_HFAILED(hr, "DS buffer creation fail.")
 
 
 			D3D12_DEPTH_STENCIL_VIEW_DESC dsd;
@@ -195,6 +195,9 @@ void TestEngine::initGraphics()
 				&dsd,
 				m_ds_heap->GetCPUDescriptorHandleForHeapStart()
 			);
+
+			m_vertex_views.reserve(8);
+			m_vertex_views.resize(2);
 		}
 	}
 	
@@ -205,70 +208,105 @@ void TestEngine::initResources()
 	HRESULT hr;
 	auto device = m_graphics.m_device.Get();
 
-	/* Axis of faces
-	   _______
-	  /      /|
-	 /  Y+  / |
-	+------+  |
-	|      |X+/
-	|  Z-  | /
-	+------+
-
-	*/
-	Vertex verts[24];
-	size_t verts_cnt = sizeof(verts)/sizeof(Vertex);
+	// PLANE
 	{
+		MeshInitDesc desc={};
+		Vertex		mesh_vrts[4];
+		uint32_t	idxs[]={0,1,2,2,3,0};
+		vertexFillQuad(mesh_vrts, 4, 0, XMVectorSet(0, 1, 0, 1), XMVectorSet(1, 0, 0, 1));
 
-		/*
-		       Y+                      Y+
-		1  +--------+ 0         5  +--------+ 4
-		   |        |              |        |
-		   |   X+   | Z+       Z+  |   X-   |
-		   |        |              |        |
-		2  +--------+ 3         6  +--------+ 7
+		desc.p_verts		= mesh_vrts;
+		desc.verts_count	= 4;
+		desc.p_indices		= idxs;
+		desc.indices_count	= 6;
+		desc.p_submesh_pairs= nullptr;
+		desc.submesh_pairs_count = 0;
 
-		       Z+                      Z+
-		9  +--------+ 8        13  +--------+ 12
-		   |        |              |        |
-		   |   Y+   | X+       X+  |   Y-   |
-		   |        |              |        |
-		10 +--------+ 11       14  +--------+ 15
-
-		       Y+                      Y+
-		17 +--------+ 16       21  +--------+ 20
-		   |        |              |        |
-		X+ |   Z+   |              |   Z-   | X+
-		   |        |              |        |
-		18 +--------+ 19       22  +--------+ 23
-
-		*/
-		// X+
-		vertexFillQuad(verts, verts_cnt, 0,	XMVectorSet(1,0,0,1),	XMVectorSet(0,0,1,1));
-		// X-
-		vertexFillQuad(verts, verts_cnt, 4,	XMVectorSet(-1,0,0,1),	XMVectorSet(0,0,-1,1));
-		// Y+
-		vertexFillQuad(verts, verts_cnt, 8,	XMVectorSet(0,1,0,1),	XMVectorSet(1,0,0,1));
-		// Y-
-		vertexFillQuad(verts, verts_cnt, 12,XMVectorSet(0,-1,0,1),	XMVectorSet(-1,0,0,1));
-		// Z+
-		vertexFillQuad(verts, verts_cnt, 16,XMVectorSet(0,0,1,1),	XMVectorSet(-1,0,0,1));
-		// Z-
-		vertexFillQuad(verts, verts_cnt, 20,XMVectorSet(0,0,-1,1),	XMVectorSet(1,0,0,1));
+		m_mesh_plane = std::make_unique<Mesh>();
+		hr = m_mesh_plane->init(&m_graphics, &desc);
+		THROW_IF_HFAILED(hr, "Mesh creation fail.")
 	}
 
-	uint32_t indices[]=
+	// CUBE
 	{
-		0,1,2, 2,3,0, // Z-
-		4,5,6, 6,7,4, // Z+
-		8,9,10, 10,11,8, // X+
-		12,13,14, 14,15,12, // X-
-		16,17,18, 18,19,16, // Y+
-		20,21,22, 22,23,20, // Y-
-	};
-	size_t indices_cnt = sizeof(indices)/sizeof(uint32_t);
+		/* Axis of faces
+		.    _______
+		.   /      /|
+		.  /  Y+  / |
+		. +------+  |
+		. |      |X+/
+		. |  Z-  | /
+		. +------+
+
+		*/
+		Vertex verts[24];
+		size_t verts_cnt = sizeof(verts)/sizeof(Vertex);
+		{
+
+			/*
+			.        Y+                      Y+
+			. 1  +--------+ 0         5  +--------+ 4
+			.    |        |              |        |
+			.    |   X+   | Z+       Z+  |   X-   |
+			.    |        |              |        |
+			. 2  +--------+ 3         6  +--------+ 7
+
+			.        Z+                      Z+
+			. 9  +--------+ 8        13  +--------+ 12
+			.    |        |              |        |
+			.    |   Y+   | X+       X+  |   Y-   |
+			.    |        |              |        |
+			. 10 +--------+ 11       14  +--------+ 15
+
+			.        Y+                      Y+
+			. 17 +--------+ 16       21  +--------+ 20
+			.    |        |              |        |
+			. X+ |   Z+   |              |   Z-   | X+
+			.    |        |              |        |
+			. 18 +--------+ 19       22  +--------+ 23
+
+			*/
+			// X+
+			vertexFillQuad(verts, verts_cnt, 0, XMVectorSet(1, 0, 0, 1), XMVectorSet(0, 0, 1, 1));
+			// X-
+			vertexFillQuad(verts, verts_cnt, 4, XMVectorSet(-1, 0, 0, 1), XMVectorSet(0, 0, -1, 1));
+			// Y+
+			vertexFillQuad(verts, verts_cnt, 8, XMVectorSet(0, 1, 0, 1), XMVectorSet(1, 0, 0, 1));
+			// Y-
+			vertexFillQuad(verts, verts_cnt, 12, XMVectorSet(0, -1, 0, 1), XMVectorSet(-1, 0, 0, 1));
+			// Z+
+			vertexFillQuad(verts, verts_cnt, 16, XMVectorSet(0, 0, 1, 1), XMVectorSet(-1, 0, 0, 1));
+			// Z-
+			vertexFillQuad(verts, verts_cnt, 20, XMVectorSet(0, 0, -1, 1), XMVectorSet(1, 0, 0, 1));
+		}
+
+		uint32_t indices[]=
+		{
+			0,1,2, 2,3,0, // Z-
+			4,5,6, 6,7,4, // Z+
+			8,9,10, 10,11,8, // X+
+			12,13,14, 14,15,12, // X-
+			16,17,18, 18,19,16, // Y+
+			20,21,22, 22,23,20, // Y-
+		};
+		size_t indices_cnt = sizeof(indices)/sizeof(uint32_t);
 
 
-	// Create vertex buffer, index buffer and instacing buffer
+		MeshInitDesc desc={};
+		desc.p_verts		= verts;
+		desc.verts_count	= verts_cnt;
+		desc.p_indices		= indices;
+		desc.indices_count	= indices_cnt;
+		desc.p_submesh_pairs= nullptr;
+		desc.submesh_pairs_count = 0;
+
+		m_mesh_cube = std::make_unique<Mesh>();
+		hr = m_mesh_cube->init(&m_graphics, &desc);
+		THROW_IF_HFAILED(hr, "Mesh creation fail.")
+	}
+
+
+	// Create instacing buffer
 	{
 		D3D12_HEAP_PROPERTIES	prop = {};
 		prop.Type					= D3D12_HEAP_TYPE_UPLOAD;
@@ -280,7 +318,7 @@ void TestEngine::initResources()
 		D3D12_RESOURCE_DESC desc ={};
 		desc.Dimension			= D3D12_RESOURCE_DIMENSION_BUFFER;
 		desc.Alignment			= 0;
-		desc.Width				= sizeof(verts);
+		desc.Width				= sizeof(InstancingData) * m_config.instacing_count;
 		desc.Height				= 1;
 		desc.DepthOrArraySize	= 1;
 		desc.MipLevels			= 1;
@@ -296,55 +334,9 @@ void TestEngine::initResources()
 			&desc,
 			D3D12_RESOURCE_STATE_GENERIC_READ,
 			nullptr,
-			IID_PPV_ARGS(m_vertex_buffer.GetAddressOf())
-		);
-		THROW_IF_HFAIL(hr, "Vertex buffer creation fail.")
-
-
-		desc.Width = sizeof(indices);
-		hr = device->CreateCommittedResource(
-			&prop,
-			D3D12_HEAP_FLAG_NONE,
-			&desc,
-			D3D12_RESOURCE_STATE_GENERIC_READ,
-			nullptr,
-			IID_PPV_ARGS(m_index_buffer.GetAddressOf())
-		);
-		THROW_IF_HFAIL(hr, "Index buffer creation fail.")
-
-
-		desc.Width = sizeof(InstancingData) * m_config.instacing_count;
-		hr = device->CreateCommittedResource(
-			&prop,
-			D3D12_HEAP_FLAG_NONE,
-			&desc,
-			D3D12_RESOURCE_STATE_GENERIC_READ,
-			nullptr,
 			IID_PPV_ARGS(m_instacing_buffer.GetAddressOf())
 		);
-		THROW_IF_HFAIL(hr, "Instacing buffer creation fail.")
-
-
-		uint8_t* mapped;
-		
-		hr = m_vertex_buffer->Map(0, nullptr, (void**)&mapped);
-		{
-			memcpy(mapped, verts, sizeof(verts));
-			m_vertex_views[0].BufferLocation	= m_vertex_buffer->GetGPUVirtualAddress();
-			m_vertex_views[0].StrideInBytes		= sizeof(Vertex);
-			m_vertex_views[0].SizeInBytes		= sizeof(verts);
-		}
-		m_vertex_buffer->Unmap(0, nullptr);
-
-		hr = m_index_buffer->Map(0, nullptr, (void**)&mapped);
-		{
-			memcpy(mapped, indices, sizeof(indices));
-			m_index_view.BufferLocation		= m_index_buffer->GetGPUVirtualAddress();
-			m_index_view.SizeInBytes		= sizeof(indices);
-			m_index_view.Format				= DXGI_FORMAT_R32_UINT;
-			m_index_count					= indices_cnt;
-		}
-		m_index_buffer->Unmap(0, nullptr);
+		THROW_IF_HFAILED(hr, "Instacing buffer creation fail.")
 
 		m_vertex_views[1].BufferLocation	= m_instacing_buffer->GetGPUVirtualAddress();
 		m_vertex_views[1].StrideInBytes		= sizeof(InstancingData);
@@ -378,7 +370,7 @@ void TestEngine::initResources()
 			signature.GetAddressOf(),
 			error.GetAddressOf()
 		);
-		THROW_IF_HFAIL(hr, "root signature serialization fail.")
+		THROW_IF_HFAILED(hr, "root signature serialization fail.")
 
 
 		hr = device->CreateRootSignature(
@@ -387,7 +379,7 @@ void TestEngine::initResources()
 			signature->GetBufferSize(),
 			IID_PPV_ARGS(m_root_signature.GetAddressOf())
 		);
-		THROW_IF_HFAIL(hr,"root signature creation fail.")
+		THROW_IF_HFAILED(hr,"root signature creation fail.")
 	}
 
 	// create pipeline state
@@ -396,10 +388,10 @@ void TestEngine::initResources()
 		ComPtr<ID3DBlob>	ps_blob;
 
 		hr = D3DReadFileToBlob(L"shaders/test_vs.cso", vs_blob.GetAddressOf());
-		THROW_IF_HFAIL(hr, "Can not open the vertex shader file.")
+		THROW_IF_HFAILED(hr, "Can not open the vertex shader file.")
 
 		hr = D3DReadFileToBlob(L"shaders/test_ps.cso", ps_blob.GetAddressOf());
-		THROW_IF_HFAIL(hr, "Can not open the pixel shader file.")
+		THROW_IF_HFAILED(hr, "Can not open the pixel shader file.")
 
 
 		// rasterizer
@@ -437,12 +429,12 @@ void TestEngine::initResources()
 		// PIPELINE STATE
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC	desc = {};
 		ZeroMemory(&desc, sizeof(desc));
-		desc.InputLayout					= {VERTEX_ELEMENTS, VERTEX_ELEMENTS_COUNT};
-		desc.pRootSignature					= m_root_signature.Get();
-		desc.VS								= {reinterpret_cast<UINT8*>(vs_blob->GetBufferPointer()), vs_blob->GetBufferSize()};
-		desc.PS								= {reinterpret_cast<UINT8*>(ps_blob->GetBufferPointer()), ps_blob->GetBufferSize()};
-		desc.RasterizerState				= raster;
-		desc.BlendState						= blend;
+		desc.InputLayout						= {VERTEX_ELEMENTS, VERTEX_ELEMENTS_COUNT};
+		desc.pRootSignature						= m_root_signature.Get();
+		desc.VS									= {reinterpret_cast<UINT8*>(vs_blob->GetBufferPointer()), vs_blob->GetBufferSize()};
+		desc.PS									= {reinterpret_cast<UINT8*>(ps_blob->GetBufferPointer()), ps_blob->GetBufferSize()};
+		desc.RasterizerState					= raster;
+		desc.BlendState							= blend;
 		desc.DepthStencilState.DepthEnable		= TRUE;
 		desc.DepthStencilState.StencilEnable	= FALSE;
 		desc.DepthStencilState.DepthFunc		= D3D12_COMPARISON_FUNC_LESS;
@@ -455,7 +447,7 @@ void TestEngine::initResources()
 		desc.SampleDesc.Count					= 1;
 
 		hr = device->CreateGraphicsPipelineState(&desc, IID_PPV_ARGS(m_pipeline_state.GetAddressOf()));
-		THROW_IF_HFAIL(hr, "PSO creation fail.")
+		THROW_IF_HFAILED(hr, "PSO creation fail.")
 	}
 }
 
@@ -583,11 +575,14 @@ void TestEngine::draw()
 		cmd_list->ClearRenderTargetView(rt_handle, cval, 0, nullptr);
 		cmd_list->ClearDepthStencilView(ds_handle, D3D12_CLEAR_FLAG_DEPTH|D3D12_CLEAR_FLAG_STENCIL, 1.f, 0, 0, nullptr);
 		{
-			cmd_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-			cmd_list->IASetVertexBuffers(0, 2, m_vertex_views);
-			cmd_list->IASetIndexBuffer(&m_index_view);
+			auto p_mesh = m_mesh_cube.get();
 
-			cmd_list->DrawIndexedInstanced(m_index_count, m_config.instacing_count, 0, 0, 0);
+			m_vertex_views[0] = p_mesh->m_vb_view;
+			cmd_list->IASetPrimitiveTopology	(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+			cmd_list->IASetVertexBuffers		(0, m_vertex_views.size(), m_vertex_views.data());
+			cmd_list->IASetIndexBuffer			(&p_mesh->m_ib_view);
+
+			cmd_list->DrawIndexedInstanced(p_mesh->m_submesh_pairs[0].count, m_config.instacing_count, p_mesh->m_submesh_pairs[0].offset, 0, 0);
 		}
 
 		bar[0].Transition.StateBefore	= bar[0].Transition.StateAfter;

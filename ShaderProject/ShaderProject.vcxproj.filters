@@ -10,6 +10,9 @@
     <None Include="Test.hlsli">
       <Filter>Source Files</Filter>
     </None>
+    <None Include="HDAO.hlsli">
+      <Filter>Source Files</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Test_ps.hlsl">

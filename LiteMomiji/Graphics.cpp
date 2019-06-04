@@ -7,7 +7,7 @@ namespace{
 
 UINT64 getRequiredIntermediateSize(
 	ID3D12Resource* p_dst_res, UINT subres_first, UINT subres_cnt, UINT64 baseoff,
-	D3D12_PLACED_SUBRESOURCE_FOOTPRINT* p_layouts, UINT* p_row_cnts, UINT64* p_rowsize_in_bytes)
+	D3D12_PLACED_SUBRESOURCE_FOOTPRINT* out_layouts, UINT* out_row_cnts, UINT64* out_rowsize_in_bytes)
 {
 	ID3D12Device* device;
 	p_dst_res->GetDevice(IID_PPV_ARGS(&device));
@@ -19,9 +19,9 @@ UINT64 getRequiredIntermediateSize(
 		subres_first,
 		subres_cnt,
 		baseoff,
-		p_layouts,
-		p_row_cnts,
-		p_rowsize_in_bytes,
+		out_layouts,
+		out_row_cnts,
+		out_rowsize_in_bytes,
 		&ret
 	);
 	device->Release();
@@ -52,7 +52,7 @@ UINT64 getRequiredIntermediateSize(
 			hr = D3D12CreateDevice(
 				nullptr, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(m_device.GetAddressOf())
 			);
-			THROW_IF_HFAIL(hr, "D3D12CreateDevice() Fail.")
+			THROW_IF_HFAILED(hr, "D3D12CreateDevice() Fail.")
 
 
 			// Command Queue
@@ -63,20 +63,20 @@ UINT64 getRequiredIntermediateSize(
 			qdesc.Priority	= 0;
 
 			hr = m_device->CreateCommandQueue(&qdesc, IID_PPV_ARGS(m_cmd_queue.GetAddressOf()));
-			THROW_IF_HFAIL(hr, "CreateCommandQueue() Fail.")
+			THROW_IF_HFAILED(hr, "CreateCommandQueue() Fail.")
 
 			// Command Allocator
 			hr = m_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(m_cmd_alloc.GetAddressOf()));
-			THROW_IF_HFAIL(hr, "CreateCommandAllocator() Fail.")
+			THROW_IF_HFAILED(hr, "CreateCommandAllocator() Fail.")
 
 			// Command List
 			hr = m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_cmd_alloc.Get(), nullptr, IID_PPV_ARGS(m_cmd_list.GetAddressOf()));
-			THROW_IF_HFAIL(hr, "CreateCommandList() Fail.")
+			THROW_IF_HFAILED(hr, "CreateCommandList() Fail.")
 			m_cmd_list->Close();
 
 			// Fence
 			hr = m_device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(m_fence.GetAddressOf()));
-			THROW_IF_HFAIL(hr, "CreateFence() Fail.")
+			THROW_IF_HFAILED(hr, "CreateFence() Fail.")
 
 			m_fence_value = 1;
 			m_fence_event = CreateEventEx(nullptr, TEXT(""), 0, EVENT_ALL_ACCESS);
@@ -90,7 +90,7 @@ UINT64 getRequiredIntermediateSize(
 
 		{
 			hr = CreateDXGIFactory(IID_PPV_ARGS(m_dxgi_factory.GetAddressOf()));
-			THROW_IF_HFAIL(hr, "CreateDXGIFactory() Fail.")
+			THROW_IF_HFAILED(hr, "CreateDXGIFactory() Fail.")
 		}
 	}
 	//-------------------------------------------------------------------------
@@ -101,7 +101,7 @@ UINT64 getRequiredIntermediateSize(
 	}
 	//-------------------------------------------------------------------------
 
-	bool Graphics::updateSubresources(ID3D12Resource* p_resource, UINT first, UINT count, D3D12_SUBRESOURCE_DATA* p_subresources)
+	bool Graphics::updateSubresources(ID3D12Resource* p_dst_res, UINT first, UINT count, D3D12_SUBRESOURCE_DATA* p_src_subres)
 	{
 		bool ret = false;
 		m_cmd_alloc->Reset();
@@ -111,7 +111,7 @@ UINT64 getRequiredIntermediateSize(
 
 		HRESULT hr;
 		{
-			auto required_size = getRequiredIntermediateSize(p_resource, first, count, 0, nullptr, nullptr, nullptr);
+			auto required_size = getRequiredIntermediateSize(p_dst_res, first, count, 0, nullptr, nullptr, nullptr);
 			D3D12_RESOURCE_DESC desc=
 			{
 				D3D12_RESOURCE_DIMENSION_BUFFER,
@@ -151,7 +151,7 @@ UINT64 getRequiredIntermediateSize(
 		D3D12_RESOURCE_BARRIER barrier={};
 		{
 			barrier.Type					= D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-			barrier.Transition.pResource	= p_resource;
+			barrier.Transition.pResource	= p_dst_res;
 			barrier.Transition.Subresource	= D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 			barrier.Transition.StateBefore	= D3D12_RESOURCE_STATE_COMMON;
 			barrier.Transition.StateAfter	= D3D12_RESOURCE_STATE_COPY_DEST;
@@ -174,9 +174,9 @@ UINT64 getRequiredIntermediateSize(
 			auto p_layouts		= reinterpret_cast<D3D12_PLACED_SUBRESOURCE_FOOTPRINT*>(buffer);
 			auto p_row_sizes	= reinterpret_cast<UINT64*>(p_layouts + count);
 			auto p_row_cnt		= reinterpret_cast<UINT*>(p_row_sizes + count);
-			required_size		= getRequiredIntermediateSize(p_resource, first, count, 0, p_layouts, p_row_cnt, p_row_sizes);
+			required_size		= getRequiredIntermediateSize(p_dst_res, first, count, 0, p_layouts, p_row_cnt, p_row_sizes);
 
-			hr = UpdateSubresources(m_cmd_list.Get(), p_resource, intermediate.Get(), first, count, required_size, p_subresources);
+			hr = UpdateSubresources(m_cmd_list.Get(), p_dst_res, intermediate.Get(), first, count, required_size, p_layouts, p_row_cnt, p_row_sizes, p_src_subres);
 			if(FAILED(hr))
 			{
 				goto GOTO_FINISHED;

@@ -29,17 +29,21 @@ bool XM_CALLCONV vertexFillQuad(Vertex* p_first, size_t max_num, size_t offset, 
 
 
 
-HRESULT Mesh::init(Graphics* graphics, MeshDesc* p_desc)
+HRESULT Mesh::init(Graphics* graphics, MeshInitDesc* p_desc)
 {
 	HRESULT	hr;
+
 	auto	p_device		= graphics->m_device.Get();
-	size_t	index_offset	= getAlignedSize<UINT64>(sizeof(Vertex)*p_desc->verts_count, 64);
+	UINT64	vertex_size		= sizeof(Vertex)*p_desc->verts_count;
+	auto	index_offset	= getAlignedSize<UINT64>(vertex_size, D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT);
+	UINT64	index_size		= sizeof(uint32_t)*p_desc->indices_count;
+	auto	heap_size		= getAlignedSize<UINT64>(index_offset+index_size, D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT);
 
 
 	// create the heap for buffers
 	{
 		D3D12_HEAP_DESC	desc={};
-		desc.SizeInBytes	= index_offset + getAlignedSize<UINT64>(sizeof(uint32_t)*p_desc->verts_count, 64);
+		desc.SizeInBytes	= heap_size;
 		desc.Alignment		= 0;
 		desc.Flags			= D3D12_HEAP_FLAG_NONE;
 
@@ -50,7 +54,7 @@ HRESULT Mesh::init(Graphics* graphics, MeshDesc* p_desc)
 		prop.CreationNodeMask		= 1;
 		prop.VisibleNodeMask		= 1;
 
-		hr = p_device->CreateHeap(&desc, IID_PPV_ARGS(m_model_heap.GetAddressOf()));
+		hr = p_device->CreateHeap(&desc, IID_PPV_ARGS(m_mesh_heap.GetAddressOf()));
 		if(FAILED(hr))
 		{
 			return hr;
@@ -62,7 +66,7 @@ HRESULT Mesh::init(Graphics* graphics, MeshDesc* p_desc)
 		D3D12_RESOURCE_DESC	desc={};
 		desc.Dimension			= D3D12_RESOURCE_DIMENSION_BUFFER;
 		desc.Alignment			= 0;
-		desc.Width				= sizeof(Vertex)*p_desc->verts_count;
+		desc.Width				= vertex_size;
 		desc.Height				= 1;
 		desc.DepthOrArraySize	= 1;
 		desc.MipLevels			= 1;
@@ -74,7 +78,7 @@ HRESULT Mesh::init(Graphics* graphics, MeshDesc* p_desc)
 
 		// create vertex buffer
 		hr = p_device->CreatePlacedResource(
-			m_model_heap.Get(),
+			m_mesh_heap.Get(),
 			0,
 			&desc,
 			D3D12_RESOURCE_STATE_GENERIC_READ,
@@ -87,14 +91,14 @@ HRESULT Mesh::init(Graphics* graphics, MeshDesc* p_desc)
 		}
 
 		// create index buffer
-		desc.Width = sizeof(uint32_t)*p_desc->verts_count;
+		desc.Width		= index_size;
 		hr = p_device->CreatePlacedResource(
-			m_model_heap.Get(),
+			m_mesh_heap.Get(),
 			index_offset,
 			&desc,
 			D3D12_RESOURCE_STATE_GENERIC_READ,
 			nullptr,
-			IID_PPV_ARGS(m_vertex_buffer.GetAddressOf())
+			IID_PPV_ARGS(m_index_buffer.GetAddressOf())
 		);
 		if(FAILED(hr))
 		{
@@ -111,14 +115,14 @@ HRESULT Mesh::init(Graphics* graphics, MeshDesc* p_desc)
 
 		// copy vertices to GPU
 		auto rt = graphics->updateSubresources(m_vertex_buffer.Get(), 0, 1, &subres);
-		if(rt)
+		if(!rt)
 		{
 			return E_FAIL;
 		}
 
 		subres.pData = p_desc->p_indices;
 		rt = graphics->updateSubresources(m_index_buffer.Get(), 0, 1, &subres);
-		if(rt)
+		if(!rt)
 		{
 			return E_FAIL;
 		}
@@ -137,12 +141,12 @@ HRESULT Mesh::init(Graphics* graphics, MeshDesc* p_desc)
 
 	// setup submeshes
 	{
-		auto cnt = 1 + (p_desc->p_submesh_pairs && p_desc->submesh_pairs_count) ? (p_desc->submesh_pairs_count) : (0);
+		auto cnt = 1 + ((p_desc->p_submesh_pairs && p_desc->submesh_pairs_count) ? (p_desc->submesh_pairs_count) : (0));
 
 		m_submesh_pairs.reserve(cnt);
 		m_submesh_pairs.resize(cnt);
 
-		m_submesh_pairs[0].offset = 0;
+		m_submesh_pairs[0].offset	= 0;
 		m_submesh_pairs[0].count	= p_desc->indices_count;
 
 		for(size_t i=1; i<cnt; i++)

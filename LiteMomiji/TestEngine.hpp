@@ -7,6 +7,7 @@
 #include <Xinput.h>
 #include <vector>
 #include <chrono>
+#include <memory>
 
 struct Config{
 	uint32_t	width;
@@ -38,7 +39,7 @@ class TestEngine{
 			Microsoft::WRL::ComPtr<ID3D12Resource>	m_vertex_buffer;
 			Microsoft::WRL::ComPtr<ID3D12Resource>	m_index_buffer;
 			Microsoft::WRL::ComPtr<ID3D12Resource>	m_instacing_buffer;
-			D3D12_VERTEX_BUFFER_VIEW	m_vertex_views[2];
+			std::vector<D3D12_VERTEX_BUFFER_VIEW>	m_vertex_views;
 			D3D12_INDEX_BUFFER_VIEW		m_index_view;
 			uint32_t					m_index_count;
 			UINT8*						m_instacing_ptr;
@@ -54,6 +55,9 @@ class TestEngine{
 
 			float			m_phase;
 			XINPUT_STATE	m_xinput_state;
+
+			std::unique_ptr<Mesh> m_mesh_cube;
+			std::unique_ptr<Mesh> m_mesh_plane;
 
 	public:
 		/* Methods */
