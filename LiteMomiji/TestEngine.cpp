@@ -300,46 +300,25 @@ void TestEngine::initResources()
 		hr = m_instacing_buffer->Map(0, nullptr, (void**)&m_instacing_ptr);
 	}
 
-	// create root signature
+	// Create PSO
 	{
-		D3D12_ROOT_PARAMETER param;
-		param.ParameterType				= D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
-		param.ShaderVisibility			= D3D12_SHADER_VISIBILITY_VERTEX;
-		param.Constants.Num32BitValues	= sizeof(ShaderUniforms)/4;
-		param.Constants.RegisterSpace	= 0;
-		param.Constants.ShaderRegister	= 0;
+		D3D12_ROOT_PARAMETER rs_param;
+		rs_param.ParameterType				= D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+		rs_param.ShaderVisibility			= D3D12_SHADER_VISIBILITY_VERTEX;
+		rs_param.Constants.Num32BitValues	= sizeof(ShaderUniforms)/4;
+		rs_param.Constants.RegisterSpace	= 0;
+		rs_param.Constants.ShaderRegister	= 0;
 
-		D3D12_ROOT_SIGNATURE_DESC	desc={};
-		desc.NumParameters		= 1;
-		desc.pParameters		= &param;
-		desc.NumStaticSamplers	= 0;
-		desc.pStaticSamplers	= nullptr;
-		desc.Flags =
+		D3D12_ROOT_SIGNATURE_DESC	rs_desc={};
+		rs_desc.NumParameters		= 1;
+		rs_desc.pParameters			= &rs_param;
+		rs_desc.NumStaticSamplers	= 0;
+		rs_desc.pStaticSamplers		= nullptr;
+		rs_desc.Flags =
 			D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT
 		;
 
-		ComPtr<ID3DBlob>	signature;
-		ComPtr<ID3DBlob>	error;
-		hr = D3D12SerializeRootSignature(
-			&desc,
-			D3D_ROOT_SIGNATURE_VERSION_1,
-			signature.GetAddressOf(),
-			error.GetAddressOf()
-		);
-		THROW_IF_HFAILED(hr, "root signature serialization fail.")
 
-
-		hr = device->CreateRootSignature(
-			0,
-			signature->GetBufferPointer(),
-			signature->GetBufferSize(),
-			IID_PPV_ARGS(m_root_signature.GetAddressOf())
-		);
-		THROW_IF_HFAILED(hr,"root signature creation fail.")
-	}
-
-	// create pipeline state
-	{
 		ComPtr<ID3DBlob>	vs_blob;
 		ComPtr<ID3DBlob>	ps_blob;
 
@@ -383,27 +362,27 @@ void TestEngine::initResources()
 		}
 
 		// PIPELINE STATE
-		D3D12_GRAPHICS_PIPELINE_STATE_DESC	desc = {};
-		ZeroMemory(&desc, sizeof(desc));
-		desc.InputLayout						= {VERTEX_ELEMENTS, VERTEX_ELEMENTS_COUNT};
-		desc.pRootSignature						= m_root_signature.Get();
-		desc.VS									= {reinterpret_cast<UINT8*>(vs_blob->GetBufferPointer()), vs_blob->GetBufferSize()};
-		desc.PS									= {reinterpret_cast<UINT8*>(ps_blob->GetBufferPointer()), ps_blob->GetBufferSize()};
-		desc.RasterizerState					= raster;
-		desc.BlendState							= blend;
-		desc.DepthStencilState.DepthEnable		= TRUE;
-		desc.DepthStencilState.StencilEnable	= FALSE;
-		desc.DepthStencilState.DepthFunc		= D3D12_COMPARISON_FUNC_LESS;
-		desc.DepthStencilState.DepthWriteMask	= D3D12_DEPTH_WRITE_MASK_ALL;
-		desc.SampleMask							= UINT_MAX;
-		desc.PrimitiveTopologyType				= D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-		desc.NumRenderTargets					= 1;
-		desc.RTVFormats[0]						= DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
-		desc.DSVFormat							= DXGI_FORMAT_D24_UNORM_S8_UINT;
-		desc.SampleDesc.Count					= 1;
+		D3D12_GRAPHICS_PIPELINE_STATE_DESC	ps_desc ={};
+		ZeroMemory(&ps_desc, sizeof(ps_desc));
+		ps_desc.InputLayout						={VERTEX_ELEMENTS, VERTEX_ELEMENTS_COUNT};
+		ps_desc.pRootSignature					= nullptr;
+		ps_desc.VS								={reinterpret_cast<UINT8*>(vs_blob->GetBufferPointer()), vs_blob->GetBufferSize()};
+		ps_desc.PS								={reinterpret_cast<UINT8*>(ps_blob->GetBufferPointer()), ps_blob->GetBufferSize()};
+		ps_desc.RasterizerState					= raster;
+		ps_desc.BlendState						= blend;
+		ps_desc.DepthStencilState.DepthEnable	= TRUE;
+		ps_desc.DepthStencilState.StencilEnable	= FALSE;
+		ps_desc.DepthStencilState.DepthFunc		= D3D12_COMPARISON_FUNC_LESS;
+		ps_desc.DepthStencilState.DepthWriteMask= D3D12_DEPTH_WRITE_MASK_ALL;
+		ps_desc.SampleMask						= UINT_MAX;
+		ps_desc.PrimitiveTopologyType			= D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+		ps_desc.NumRenderTargets				= 1;
+		ps_desc.RTVFormats[0]					= DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+		ps_desc.DSVFormat						= DXGI_FORMAT_D24_UNORM_S8_UINT;
+		ps_desc.SampleDesc.Count				= 1;
 
-		hr = device->CreateGraphicsPipelineState(&desc, IID_PPV_ARGS(m_pipeline_state.GetAddressOf()));
-		THROW_IF_HFAILED(hr, "PSO creation fail.")
+		m_pso.reset(new PipelineState());
+		m_pso->init(m_graphics.get(), &rs_desc, &ps_desc);
 	}
 }
 
@@ -491,10 +470,9 @@ void TestEngine::draw()
 
 	m_gfx_context->begin();
 	do{
-		// setup pso
-		cmd_list->SetPipelineState(m_pipeline_state.Get());
-		cmd_list->SetGraphicsRootSignature(m_root_signature.Get());
-
+		// set pso
+		m_gfx_context->setPipelineState(m_pso.get());
+		
 		// set shader uniforms
 		{
 			ShaderUniforms su;

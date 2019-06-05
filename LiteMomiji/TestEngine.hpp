@@ -2,9 +2,10 @@
 
 #include "pre.hpp"
 #include "Engine.hpp"
-#include "Mesh.hpp"
 #include "Graphics.hpp"
 #include "GraphicsContext.hpp"
+#include "PipelineState.hpp"
+#include "Mesh.hpp"
 #include <Xinput.h>
 #include <vector>
 #include <chrono>
@@ -41,8 +42,7 @@ class TestEngine{
 			std::vector<D3D12_VERTEX_BUFFER_VIEW>	m_vertex_views;
 			UINT8*									m_instacing_ptr;
 
-			Microsoft::WRL::ComPtr<ID3D12RootSignature>	m_root_signature;
-			Microsoft::WRL::ComPtr<ID3D12PipelineState>	m_pipeline_state;
+			std::unique_ptr<PipelineState>	m_pso;
 			DirectX::XMFLOAT3	m_cam_pos;
 			DirectX::XMFLOAT3	m_cam_rot;
 
