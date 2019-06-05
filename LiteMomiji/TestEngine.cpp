@@ -71,12 +71,14 @@ void TestEngine::initGraphics()
 {
 	HRESULT hr;
 
-	m_graphics.init();
-	m_gfx_context.reset(new GraphicsContext());
-	m_gfx_context->init(&m_graphics);
+	m_graphics.reset(new Graphics());
+	m_graphics->init();
 
-	auto device		= m_graphics.m_device.Get();
-	auto factory	= m_graphics.m_dxgi_factory.Get();
+	m_gfx_context.reset(new GraphicsContext());
+	m_gfx_context->init(m_graphics.get());
+
+	auto device		= m_graphics->m_device.Get();
+	auto factory	= m_graphics->m_dxgi_factory.Get();
 
 	// Create Swapchain
 	{
@@ -95,7 +97,7 @@ void TestEngine::initGraphics()
 		desc.BufferDesc.RefreshRate.Denominator	= 60;
 
 		ComPtr<IDXGISwapChain>	sc;
-		hr = factory->CreateSwapChain(m_graphics.m_cmd_queue.Get(), &desc, sc.GetAddressOf());
+		hr = factory->CreateSwapChain(m_graphics->m_cmd_queue.Get(), &desc, sc.GetAddressOf());
 		THROW_IF_HFAILED(hr, "CreateSwapChain() Fail.")
 
 		// cast to 3
@@ -160,7 +162,7 @@ void TestEngine::initGraphics()
 void TestEngine::initResources()
 {
 	HRESULT hr;
-	auto device = m_graphics.m_device.Get();
+	auto device = m_graphics->m_device.Get();
 
 	// PLANE
 	{
@@ -177,7 +179,7 @@ void TestEngine::initResources()
 		desc.submesh_pairs_count = 0;
 
 		m_mesh_plane = std::make_unique<Mesh>();
-		hr = m_mesh_plane->init(&m_graphics, &desc);
+		hr = m_mesh_plane->init(m_graphics.get(), &desc);
 		THROW_IF_HFAILED(hr, "Mesh creation fail.")
 	}
 
@@ -255,7 +257,7 @@ void TestEngine::initResources()
 		desc.submesh_pairs_count = 0;
 
 		m_mesh_cube = std::make_unique<Mesh>();
-		hr = m_mesh_cube->init(&m_graphics, &desc);
+		hr = m_mesh_cube->init(m_graphics.get(), &desc);
 		THROW_IF_HFAILED(hr, "Mesh creation fail.")
 	}
 
@@ -483,7 +485,7 @@ void TestEngine::draw()
 
 	setRTVCurrent();
 
-	auto cmd_queue	= m_graphics.m_cmd_queue.Get();
+	auto cmd_queue	= m_graphics->m_cmd_queue.Get();
 	auto cmd_alloc	= m_gfx_context->m_cmd_alloc.Get();
 	auto cmd_list	= m_gfx_context->m_cmd_list.Get();
 
@@ -550,7 +552,7 @@ void TestEngine::draw()
 	cmd_queue->ExecuteCommandLists(1, cmd_lists);
 
 	m_swapchain->Present(1, 0);
-	m_graphics.waitForDone();
+	m_graphics->waitForDone();
 }
 
 int TestEngine::run(int argc, char** argv)

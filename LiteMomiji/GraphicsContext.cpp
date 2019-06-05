@@ -1,6 +1,9 @@
 /* declatation */
 #include "GraphicsContext.hpp"
+
+/* includes */
 #include "Graphics.hpp"
+#include "PipelineState.hpp"
 
 void GraphicsContext::init(Graphics* graph)
 {
@@ -103,6 +106,12 @@ void GraphicsContext::end()
 	m_cmd_list->ResourceBarrier(m_rtv_count, m_rtv_barriers);
 
 	m_cmd_list->Close();
+}
+
+void GraphicsContext::setPipelineState(PipelineState* pso)
+{
+	m_cmd_list->SetPipelineState(pso->m_pipeline_state.Get());
+	m_cmd_list->SetGraphicsRootSignature(pso->m_root_signature.Get());
 }
 
 void GraphicsContext::clearRenderTarget(uint32_t num, const FLOAT rgba[4], UINT rect_cnt, const D3D12_RECT* rects)

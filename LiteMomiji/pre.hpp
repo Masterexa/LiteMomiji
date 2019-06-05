@@ -20,9 +20,12 @@ struct Vertex{
 };
 
 struct Graphics;
+struct GraphicsContext;
+struct PipelineState;
 struct Mesh;
 struct Model;
 struct Material;
+
 
 template<typename T>
 constexpr T getAlignedSize(T size, T align)

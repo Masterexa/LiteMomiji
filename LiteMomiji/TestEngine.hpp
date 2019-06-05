@@ -28,7 +28,7 @@ class TestEngine{
 			double				m_time_counted;
 
 			Config		m_config;
-			Graphics	m_graphics;
+			std::unique_ptr<Graphics>			m_graphics;
 			std::unique_ptr<GraphicsContext>	m_gfx_context;
 
 			Microsoft::WRL::ComPtr<IDXGISwapChain3>				m_swapchain;
