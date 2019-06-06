@@ -5,6 +5,14 @@
 #include "Graphics.hpp"
 #include "PipelineState.hpp"
 
+GraphicsContext::GraphicsContext() :
+	m_graphics(nullptr),
+	m_recoding(false),
+	m_ds_enabled(false)
+{
+	m_vb_views.reserve(8);
+}
+
 void GraphicsContext::init(Graphics* graph)
 {
 	HRESULT hr;
@@ -94,6 +102,8 @@ void GraphicsContext::begin()
 	auto rt_handle = m_rtv_heap->GetCPUDescriptorHandleForHeapStart();
 	auto ds_handle = m_dsv_heap->GetCPUDescriptorHandleForHeapStart();
 	m_cmd_list->OMSetRenderTargets(m_rtv_count, &rt_handle, TRUE, m_ds_enabled ? &ds_handle : nullptr);
+
+	m_recoding = true;
 }
 
 void GraphicsContext::end()
@@ -106,6 +116,7 @@ void GraphicsContext::end()
 	m_cmd_list->ResourceBarrier(m_rtv_count, m_rtv_barriers);
 
 	m_cmd_list->Close();
+	m_recoding = false;
 }
 
 void GraphicsContext::setPipelineState(PipelineState* pso)

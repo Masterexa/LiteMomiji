@@ -3,7 +3,6 @@
 #include "pre.hpp"
 #include <vector>
 
-
 struct GraphicsBatch{
 	/* Instance */
 		/* Fields */
@@ -20,6 +19,8 @@ struct GraphicsContext{
 	/* Instance */
 		/* Fields */
 			Graphics*	m_graphics;
+
+			bool	m_recoding;
 			Microsoft::WRL::ComPtr<ID3D12CommandAllocator>		m_cmd_alloc;
 			Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList>	m_cmd_list;
 
@@ -32,6 +33,7 @@ struct GraphicsContext{
 			bool						m_ds_enabled;
 
 		/* inits */
+			GraphicsContext();
 			void init(Graphics* graph);
 
 		/* Methods */

@@ -55,6 +55,7 @@ class TestEngine{
 
 			std::unique_ptr<Mesh> m_mesh_cube;
 			std::unique_ptr<Mesh> m_mesh_plane;
+			std::unique_ptr<Mesh> m_mesh_file;
 
 	public:
 		/* Methods */

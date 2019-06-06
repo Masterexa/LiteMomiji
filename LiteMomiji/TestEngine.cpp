@@ -1,4 +1,5 @@
 #include "TestEngine.hpp"
+#include "Model.hpp"
 #include <iostream>
 #include <thread>
 #include <stdexcept>
@@ -169,11 +170,19 @@ void TestEngine::initResources()
 		MeshInitDesc desc={};
 		Vertex		mesh_vrts[4];
 		uint32_t	idxs[]={0,1,2,2,3,0};
-		vertexFillQuad(mesh_vrts, 4, 0, XMVectorSet(0, 1, 0, 1), XMVectorSet(1, 0, 0, 1));
+		vertexFillQuad(mesh_vrts, 4, 0, XMVectorSet(0, 0, -1, 1), XMVectorSet(1, 0, 0, 1));
+		for(size_t i = 0; i<4; i++)
+		{
+			// plane scale to (1,1,1) from (2,2,2)
+			XMStoreFloat3(
+				&mesh_vrts[i].position,
+				XMVectorMultiply(XMLoadFloat3(&mesh_vrts[i].position), XMVectorSet(0.5f, 0.5f, 0.0f, 1.0f))
+			);
+		}
 
 		desc.verts_ptr		= mesh_vrts;
 		desc.verts_count	= 4;
-		desc.indices_ptr		= idxs;
+		desc.indices_ptr	= idxs;
 		desc.indices_count	= 6;
 		desc.submesh_pairs_ptr= nullptr;
 		desc.submesh_pairs_count = 0;
@@ -261,6 +270,15 @@ void TestEngine::initResources()
 		THROW_IF_HFAILED(hr, "Mesh creation fail.")
 	}
 
+	// OWN MESH
+	{
+		Mesh* tmp=nullptr;
+		if(!loadWavefrontFromFile("suzanne.obj", m_graphics.get(), &tmp))
+		{
+			throw std::runtime_error("Wavefront load failed.");
+		}
+		m_mesh_file.reset(tmp);
+	}
 
 	// Create instacing buffer
 	{
@@ -384,6 +402,7 @@ void TestEngine::initResources()
 		m_pso.reset(new PipelineState());
 		m_pso->init(m_graphics.get(), &rs_desc, &ps_desc);
 	}
+
 }
 
 void TestEngine::setRTVCurrent()
@@ -513,7 +532,7 @@ void TestEngine::draw()
 		m_gfx_context->clearRenderTarget(0, cval, 0, nullptr);
 		m_gfx_context->clearDepthStencil(D3D12_CLEAR_FLAG_DEPTH|D3D12_CLEAR_FLAG_STENCIL, 1.f, 0, 0, nullptr);
 		{
-			auto p_mesh = m_mesh_cube.get();
+			auto p_mesh = m_mesh_file.get();
 
 			m_vertex_views[0] = p_mesh->m_vb_view;
 			cmd_list->IASetPrimitiveTopology	(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);

@@ -64,12 +64,10 @@ float smithG_GGX_aniso(float NdV, float VdX, float VdY, float ax, float ay)
 
 float3 physically(in BSDFIn pin)
 {
-	float NdL = dot(pin.N, pin.L);
-	float NdV = dot(pin.N, pin.V);
+	float NdL = max(0,dot(pin.N, pin.L));
+	float NdV = max(0,dot(pin.N, pin.V));
 	float NdH = dot(pin.N, pin.H);
 	float LdH = dot(pin.L, pin.H);
-	if(NdL<0 || NdV<0)
-		return (float3)0;
 
 	float lum		= 0.3*pin.albedo.r + 0.6*pin.albedo.g + 0.1*pin.albedo.b;
 	float3 ctint	= pin.albedo/lum; //step(a,b) : a less then b
@@ -86,12 +84,14 @@ float3 physically(in BSDFIn pin)
 	float aspect = sqrt(1-pin.anisotropic*0.9);
 	float ax	= max(0.001, sqr(pin.roughness)/aspect);
 	float ay	= max(0.001, sqr(pin.roughness)*aspect);
-	float Ds	= GTR2_aniso(NdH, dot(pin.H,pin.B), dot(pin.H,pin.T), ax, ay);
+	//float Ds	= GTR2_aniso(NdH, dot(pin.H,pin.B), dot(pin.H,pin.T), ax, ay);
+	float Ds	= GTR2(NdH, sqr(pin.roughness));
 	float FH	= fresnel(LdH);
 	float3 Fs	= lerp(spec0, float3(1, 1, 1), FH);
-	float Gs	=
+	float Gs	=/*
 		smithG_GGX_aniso(NdL,dot(pin.L,pin.B), dot(pin.L, pin.T), ax, ay)
-		* smithG_GGX_aniso(NdV, dot(pin.V,pin.B), dot(pin.V,pin.T), ax, ay)
+		* smithG_GGX_aniso(NdV, dot(pin.V,pin.B), dot(pin.V,pin.T), ax, ay)*/
+		smithG_GGX(NdL, sqr(pin.roughness))*smithG_GGX(NdV, sqr(pin.roughness))
 	;
 
 	// sheen

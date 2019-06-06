@@ -19,4 +19,4 @@ struct Model{
 };
 
 
-bool loadWavefrontFromFile(char const* path, Model** out_model);
+bool loadWavefrontFromFile(char const* path, Graphics* graphics, Mesh** out_model);

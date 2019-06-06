@@ -21,5 +21,8 @@
     <FxCompile Include="Test_vs.hlsl">
       <Filter>Source Files</Filter>
     </FxCompile>
+    <FxCompile Include="DebugView_ps.hlsl">
+      <Filter>Source Files</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>
