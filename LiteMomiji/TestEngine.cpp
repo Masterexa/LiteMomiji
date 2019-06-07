@@ -8,6 +8,7 @@
 #include <DirectXColors.h>
 #include <DirectXCollision.h>
 #include <d3dcompiler.h>
+#include <imgui.h>
 
 #pragma comment(lib,"dxgi.lib")
 #pragma comment(lib,"d3d12.lib")
@@ -19,6 +20,8 @@ namespace{
 	using namespace DirectX::PackedVector;
 
 	const TCHAR* WNDCLASS_NAME = TEXT("TinyMomiji");
+
+	TestEngine*	g_main=nullptr;
 }
 
 template<typename T>
@@ -62,6 +65,16 @@ const size_t VERTEX_ELEMENTS_COUNT = sizeof(VERTEX_ELEMENTS)/sizeof(D3D12_INPUT_
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 {
+	return g_main->wndProc(hwnd, msg, wp, lp);
+}
+
+LRESULT TestEngine::wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
+{
+	if(m_imgui && m_imgui->sendWindowMessage(hwnd, msg, wp, lp))
+	{
+		return 1;
+	}
+
 	switch(msg)
 	{
 		case WM_CLOSE:
@@ -435,6 +448,74 @@ void TestEngine::setRTVCurrent()
 	m_gfx_context->setRenderTarget(rt_res, &rdesc, 1, m_ds_buffer.Get(), &dsd);
 }
 
+void TestEngine::update()
+{
+	printf("\r FPS : %f", 1.0/m_time_delta);
+
+
+	auto xr = XInputGetState(0, &m_xinput_state);
+	if(xr==ERROR_SUCCESS)
+	{
+		auto getNormalizedInput =[](float x, float y, float z)->auto
+		{
+			auto move = XMVectorSet(x, y, z, 1.f);
+			float	magnitude		= XMVectorGetX(XMVector3Length(move));
+			auto	move_norm		= XMVectorScale(move, 1/magnitude);
+			float	magnitude_norm	= 0.f;
+			if(magnitude>(float)XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE)
+			{
+				//clip the magnitude at its expected maximum value 
+				magnitude = (magnitude>32767.f) ? 32767.f : magnitude;
+
+				// adjust magnitude relative to the end of the dead zone
+				magnitude -= (float)XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE;
+
+				//optionally normalize the magnitude with respect to its expected range 
+				//giving a magnitude value of 0.0 to 1.0 
+				magnitude_norm = magnitude/(32767.f-(float)XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE);
+			}
+			else{
+				magnitude		= 0;
+				magnitude_norm	= 0;
+			}
+
+			return XMVectorScale(move_norm, magnitude_norm);
+		};
+		auto move	= getNormalizedInput(m_xinput_state.Gamepad.sThumbLX, 0.f, m_xinput_state.Gamepad.sThumbLY);
+		auto torque	= getNormalizedInput(-m_xinput_state.Gamepad.sThumbRY, m_xinput_state.Gamepad.sThumbRX, 0.f);
+
+		auto rot	= XMLoadFloat3(&m_cam_rot);
+
+		move = XMVectorMultiply(XMVectorSet(1, 0, 1, 1), XMVectorAdd(
+			XMVector3Rotate(move, XMQuaternionRotationRollPitchYawFromVector(rot)),
+			XMVector3Rotate(move, XMQuaternionRotationRollPitchYawFromVector(rot))
+		));
+
+		XMStoreFloat3(
+			&m_cam_pos,
+			XMVectorAdd(XMLoadFloat3(&m_cam_pos), XMVectorScale(move, m_time_delta*5.f))
+		);
+		XMStoreFloat3(
+			&m_cam_rot,
+			XMVectorAdd(rot, XMVectorScale(torque, m_time_delta*2.f))
+		);
+		
+		//m_phase = (float)m_xinput_state.Gamepad.bRightTrigger/(float)MAXBYTE;
+	}
+
+	m_imgui->newFrame();
+	{
+		bool b=true;
+		//ImGui::ShowDemoWindow(&b);
+
+		ImGui::Begin("Debug");
+		{
+			ImGui::SliderFloat("Phase", &m_phase, 0.f, 1.f);
+		}
+		ImGui::End();
+	}
+}
+
 void TestEngine::draw()
 {
 	auto edge = floorf(sqrtf(m_config.instacing_count));
@@ -550,6 +631,9 @@ void TestEngine::draw()
 
 			cmd_list->DrawIndexedInstanced(p_mesh->m_submesh_pairs[0].count, m_config.instacing_count, p_mesh->m_submesh_pairs[0].offset, 0, 0);
 		}
+
+		// render imgui
+		m_imgui->render(m_gfx_context.get());
 	}
 	while(false);
 	m_gfx_context->end();
@@ -563,6 +647,7 @@ void TestEngine::draw()
 
 int TestEngine::run(int argc, char** argv)
 {
+	setlocale(LC_ALL, "ja_jp");
 	m_phase			= 0.f;
 	m_time_delta	= m_time_counted = 0;
 	m_time_prev		= Timer::now();
@@ -599,6 +684,7 @@ int TestEngine::run(int argc, char** argv)
 
 	// Create the main window
 	{
+		g_main = this;
 		m_hwnd = CreateWindow(
 			WNDCLASS_NAME, TEXT("TinyMomiji"), WS_OVERLAPPEDWINDOW & ~WS_THICKFRAME & ~WS_MAXIMIZEBOX,
 			CW_USEDEFAULT, CW_USEDEFAULT, m_config.width, m_config.height,
@@ -620,6 +706,9 @@ int TestEngine::run(int argc, char** argv)
 	try{
 		initGraphics();
 		initResources();
+
+		m_imgui.reset(new ImguiModule());
+		m_imgui->init(m_graphics.get(), m_hwnd, 2, DXGI_FORMAT_R8G8B8A8_UNORM_SRGB);
 	}
 	catch(std::exception& e)
 	{
@@ -654,61 +743,12 @@ int TestEngine::run(int argc, char** argv)
 		m_time_delta	= dur.count();
 		m_time_counted	+= m_time_delta;
 
-		printf("\r FPS : %f", 1.0/m_time_delta);
-
-
-		auto xr = XInputGetState(0, &m_xinput_state);
-		if(xr==ERROR_SUCCESS)
-		{
-			auto getNormalizedInput = [](float x, float y, float z)->auto
-			{
-				auto move = XMVectorSet(x,y,z,1.f);
-				float	magnitude		= XMVectorGetX(XMVector3Length(move));
-				auto	move_norm		= XMVectorScale(move, 1/magnitude);
-				float	magnitude_norm	= 0.f;
-				if(magnitude>(float)XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE)
-				{
-					//clip the magnitude at its expected maximum value 
-					magnitude = (magnitude>32767.f) ? 32767.f : magnitude;
-
-					// adjust magnitude relative to the end of the dead zone
-					magnitude -= (float)XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE;
-
-					//optionally normalize the magnitude with respect to its expected range 
-					//giving a magnitude value of 0.0 to 1.0 
-					magnitude_norm = magnitude/(32767.f-(float)XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE);
-				}
-				else{
-					magnitude		= 0;
-					magnitude_norm	= 0;
-				}
-
-				return XMVectorScale(move_norm, magnitude_norm);
-			};
-			auto move	= getNormalizedInput(m_xinput_state.Gamepad.sThumbLX, 0.f, m_xinput_state.Gamepad.sThumbLY);
-			auto torque	= getNormalizedInput(-m_xinput_state.Gamepad.sThumbRY, m_xinput_state.Gamepad.sThumbRX, 0.f);
-			
-			auto rot	= XMLoadFloat3(&m_cam_rot);
-
-			move = XMVectorMultiply(XMVectorSet(1,0,1,1), XMVectorAdd(
-				XMVector3Rotate(move, XMQuaternionRotationRollPitchYawFromVector(rot)),
-				XMVector3Rotate(move, XMQuaternionRotationRollPitchYawFromVector(rot))
-			));
-
-			XMStoreFloat3(
-				&m_cam_pos,
-				XMVectorAdd(XMLoadFloat3(&m_cam_pos), XMVectorScale(move, m_time_delta*5.f))
-			);
-			XMStoreFloat3(
-				&m_cam_rot,
-				XMVectorAdd(rot, XMVectorScale(torque, m_time_delta*2.f))
-			);
-			m_phase = (float)m_xinput_state.Gamepad.bRightTrigger/(float)MAXBYTE;
-		}
+		update();
 		draw();
 		std::this_thread::yield();
 	}
 	m_instacing_buffer->Unmap(0, nullptr);
+	m_imgui->shutdown();
 
 	return 0;
 }

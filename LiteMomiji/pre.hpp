@@ -25,6 +25,7 @@ struct PipelineState;
 struct Mesh;
 struct Model;
 struct Material;
+struct ImguiModule;
 
 
 template<typename T>

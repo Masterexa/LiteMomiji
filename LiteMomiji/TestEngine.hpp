@@ -6,6 +6,7 @@
 #include "GraphicsContext.hpp"
 #include "PipelineState.hpp"
 #include "Mesh.hpp"
+#include "ImguiModule.hpp"
 #include <Xinput.h>
 #include <vector>
 #include <chrono>
@@ -57,13 +58,18 @@ class TestEngine{
 			std::unique_ptr<Mesh> m_mesh_plane;
 			std::unique_ptr<Mesh> m_mesh_file;
 
+			// Imgui
+			std::unique_ptr<ImguiModule>	m_imgui;
+
 	public:
 		/* Methods */
-
 			int run(int argc, char** argv);
+			void update();
 			void draw();
 			void setRTVCurrent();
 
 			void initGraphics();
 			void initResources();
+
+			LRESULT wndProc(HWND, UINT, WPARAM, LPARAM);
 };

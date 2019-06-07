@@ -16,6 +16,12 @@
     <Filter Include="Source Files\&lt;src&gt;">
       <UniqueIdentifier>{bfbf990e-39ce-4d15-9575-33b4ec34ff9a}</UniqueIdentifier>
     </Filter>
+    <Filter Include="IMGUI">
+      <UniqueIdentifier>{39506b70-6186-4ae6-b739-288401e931a3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="IMGUI\D3D12">
+      <UniqueIdentifier>{f4ff0c8b-6afe-4984-8a99-91235acd6c17}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Graphics.hpp">
@@ -42,6 +48,30 @@
     <ClInclude Include="PipelineState.hpp">
       <Filter>Source Files</Filter>
     </ClInclude>
+    <ClInclude Include="ImguiModule.hpp">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Submodules\imgui\imgui.h">
+      <Filter>IMGUI</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Submodules\imgui\imgui_internal.h">
+      <Filter>IMGUI</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Submodules\imgui\imstb_rectpack.h">
+      <Filter>IMGUI</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Submodules\imgui\imstb_textedit.h">
+      <Filter>IMGUI</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Submodules\imgui\imstb_truetype.h">
+      <Filter>IMGUI</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Submodules\imgui\examples\imgui_impl_dx12.h">
+      <Filter>IMGUI\D3D12</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Submodules\imgui\examples\imgui_impl_win32.h">
+      <Filter>IMGUI\D3D12</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Graphics.cpp">
@@ -64,6 +94,27 @@
     </ClCompile>
     <ClCompile Include="PipelineState.cpp">
       <Filter>Source Files\&lt;src&gt;</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Submodules\imgui\imgui.cpp">
+      <Filter>IMGUI</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Submodules\imgui\imgui_draw.cpp">
+      <Filter>IMGUI</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Submodules\imgui\examples\imgui_impl_dx12.cpp">
+      <Filter>IMGUI\D3D12</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Submodules\imgui\examples\imgui_impl_win32.cpp">
+      <Filter>IMGUI\D3D12</Filter>
+    </ClCompile>
+    <ClCompile Include="ImguiModule.cpp">
+      <Filter>Source Files\&lt;src&gt;</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Submodules\imgui\imgui_widgets.cpp">
+      <Filter>IMGUI</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Submodules\imgui\imgui_demo.cpp">
+      <Filter>IMGUI</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>
