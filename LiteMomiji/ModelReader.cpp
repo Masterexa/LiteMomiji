@@ -7,6 +7,42 @@ namespace{
 	using namespace DirectX;
 }
 
+void calculateTangentAndBinormal(Vertex* in_triangle, size_t triangle_offset, size_t triangle_length, XMFLOAT3* out_tangent, XMFLOAT3* out_binormal)
+{
+	XMVECTOR v1, v2;
+	XMVECTOR tuv;
+	float den =0.f;
+
+	v1 = XMVectorSubtract(XMLoadFloat3(&in_triangle[triangle_offset+1].position), XMLoadFloat3(&in_triangle[triangle_offset+0].position));
+	v2 = XMVectorSubtract(XMLoadFloat3(&in_triangle[triangle_offset+2].position), XMLoadFloat3(&in_triangle[triangle_offset+0].position));
+
+	XMVECTOR uv[3];
+	for(size_t i=0; i<3; i++)
+	{
+		uv[i] = XMLoadFloat2(&in_triangle[i].uv);
+	}
+
+	tuv = XMVectorSwizzle<0,2,1,3>(XMVectorSubtract(uv[1],uv[0]));
+	tuv = XMVectorAdd(tuv, XMVectorSwizzle<2,0,3,1>(XMVectorSubtract(uv[2],uv[0])) );
+	den = 1.f / (XMVectorGetX(tuv)*XMVectorGetW(tuv)-XMVectorGetY(tuv)*XMVectorGetZ(tuv));
+
+	auto tangent = XMVectorScale(
+		XMVectorSubtract(
+			XMVectorMultiply(XMVectorSwizzle<3,3,3,3>(tuv),v1), XMVectorMultiply(XMVectorSwizzle<2,2,2,2>(tuv),v2)
+		),den
+	);
+
+	auto binormal = XMVectorScale(
+		XMVectorSubtract(
+			XMVectorMultiply(XMVectorSwizzle<0,0,0,0>(tuv),v2), XMVectorMultiply(XMVectorSwizzle<1,1,1,1>(tuv),v1)
+		), den
+	);
+
+	XMStoreFloat3(out_tangent, XMVector3Normalize(tangent));
+	XMStoreFloat3(out_binormal, XMVector3Normalize(binormal));
+}
+
+
 bool triangleFanToList(uint32_t* out_dst, size_t* inout_dst_capacity, uint32_t* src, size_t src_fan_cnt, uint32_t src_fan_base)
 {
 	size_t required = src_fan_cnt;
@@ -178,6 +214,71 @@ bool loadWavefrontFromFile(char const* path, Graphics* graphics, Mesh** out_mode
 	}
 	*out_model = mesh.get();
 	mesh.release();
+
+	return true;
+}
+
+bool loadMeshFromPMXFile(char const* path, Graphics* graphics, Mesh** out_model)
+{
+	std::vector<uint8_t>	text_buffer(128);
+	FILE* fp;
+
+
+	struct Head{
+		union{
+			uint8_t		bytes[4];
+			uint32_t	u32;
+		} id;
+		float	number;
+		uint8_t	data_bytes;
+	};
+	struct HeadDataByteBase
+	{
+		uint8_t encode;
+		uint8_t additional_uvs;
+		uint8_t vertex_indices;
+		uint8_t material_indices;
+		uint8_t bone_indices;
+		uint8_t morph_indices;
+		uint8_t rigidbody_indices;
+	};
+	const Head		CORRECT_HEAD={0x50,0x4d,0x58,0x20};
+	const uint8_t	ENCODE_UTF16=0, ENCODE_UTF8=1;
+	
+	Head head;
+	HeadDataByteBase*	headdata_base;
+	std::unique_ptr<uint8_t[]> head_data;
+
+
+	auto readTest=[&]()
+	{
+	};
+
+	// load file
+	errno_t err = fopen_s(&fp, path, "rb");
+	if(err!=0)
+	{
+		return false;
+	}
+
+
+	do{
+		// read head and check 
+		fread(&head, sizeof(head), 1, fp);
+		if(CORRECT_HEAD.id.u32!=head.id.u32)
+		{
+			fclose(fp);
+			return false;
+		}
+		
+		// load head data
+		head_data.reset(new uint8_t[head.data_bytes]);
+		headdata_base = reinterpret_cast<HeadDataByteBase*>(head_data.get());
+		fread(head_data.get(), sizeof(uint8_t), head.data_bytes, fp);
+
+
+	} while(false);
+	fclose(fp);
 
 	return true;
 }

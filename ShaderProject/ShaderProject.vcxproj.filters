@@ -13,6 +13,9 @@
     <None Include="HDAO.hlsli">
       <Filter>Source Files</Filter>
     </None>
+    <None Include="ShadowCaster.hlsli">
+      <Filter>Source Files</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Test_ps.hlsl">

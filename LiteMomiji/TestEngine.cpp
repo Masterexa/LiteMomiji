@@ -21,6 +21,13 @@ namespace{
 	const TCHAR* WNDCLASS_NAME = TEXT("TinyMomiji");
 }
 
+template<typename T>
+struct OctreeElement
+{
+	size_t	first_child;
+	T		data;
+};
+
 
 struct InstancingData
 {
@@ -278,6 +285,8 @@ void TestEngine::initResources()
 			throw std::runtime_error("Wavefront load failed.");
 		}
 		m_mesh_file.reset(tmp);
+
+		loadMeshFromPMXFile("GameResources/Alicia/Alicia_solid.pmx", nullptr, nullptr);
 	}
 
 	// Create instacing buffer

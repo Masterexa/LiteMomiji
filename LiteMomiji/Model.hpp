@@ -20,3 +20,4 @@ struct Model{
 
 
 bool loadWavefrontFromFile(char const* path, Graphics* graphics, Mesh** out_model);
+bool loadMeshFromPMXFile(char const* path, Graphics* graphics, Mesh** out_model);

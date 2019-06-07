@@ -116,6 +116,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <None Include="HDAO.hlsli" />
+    <None Include="ShadowCaster.hlsli" />
     <None Include="Test.hlsli" />
   </ItemGroup>
   <ItemGroup>
