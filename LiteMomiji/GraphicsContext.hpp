@@ -32,6 +32,11 @@ struct GraphicsContext{
 			size_t						m_rtv_count;
 			bool						m_ds_enabled;
 
+			D3D12_VIEWPORT	m_viewports[D3D12_VIEWPORT_AND_SCISSORRECT_MAX_INDEX];
+			size_t			m_viewports_count;
+			D3D12_RECT		m_scissor_rects[D3D12_VIEWPORT_AND_SCISSORRECT_MAX_INDEX];
+			size_t			m_scissor_rects_count;
+
 		/* inits */
 			GraphicsContext();
 			void init(Graphics* graph);
@@ -44,6 +49,9 @@ struct GraphicsContext{
 			void end();
 
 			void setPipelineState(PipelineState* pso);
+
+			void setViewports(uint32_t vp_cnt, D3D12_VIEWPORT* vp);
+			void setScissorRects(uint32_t sc_cnt, D3D12_RECT* sc);
 
 			void clearRenderTarget(uint32_t num, const FLOAT rgba[4], UINT rect_cnt, const D3D12_RECT* rects);
 			void clearDepthStencil(D3D12_CLEAR_FLAGS flag, float depth, uint8_t stencil, UINT rect_cnt, const D3D12_RECT* rects);

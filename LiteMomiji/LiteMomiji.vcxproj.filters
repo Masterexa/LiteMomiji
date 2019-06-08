@@ -72,6 +72,9 @@
     <ClInclude Include="..\Submodules\imgui\examples\imgui_impl_win32.h">
       <Filter>IMGUI\D3D12</Filter>
     </ClInclude>
+    <ClInclude Include="DebugDrawer.hpp">
+      <Filter>Source Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Graphics.cpp">
@@ -115,6 +118,9 @@
     </ClCompile>
     <ClCompile Include="..\Submodules\imgui\imgui_demo.cpp">
       <Filter>IMGUI</Filter>
+    </ClCompile>
+    <ClCompile Include="DebugDrawer.cpp">
+      <Filter>Source Files\&lt;src&gt;</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

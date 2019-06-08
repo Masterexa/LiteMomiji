@@ -1,5 +1,6 @@
 #include "TestEngine.hpp"
 #include "Model.hpp"
+#include "DebugDrawer.hpp"
 #include <iostream>
 #include <thread>
 #include <stdexcept>
@@ -9,11 +10,14 @@
 #include <DirectXCollision.h>
 #include <d3dcompiler.h>
 #include <imgui.h>
+#include <DirectXTex.h>
 
 #pragma comment(lib,"dxgi.lib")
 #pragma comment(lib,"d3d12.lib")
 #pragma comment(lib,"d3dcompiler.lib")
 #pragma comment(lib,"xinput.lib")
+#pragma comment(lib,"DirectXTex.lib")
+
 namespace{
 	using Microsoft::WRL::ComPtr;
 	using namespace DirectX;
@@ -293,7 +297,7 @@ void TestEngine::initResources()
 	// OWN MESH
 	{
 		Mesh* tmp=nullptr;
-		if(!loadWavefrontFromFile("suzanne.obj", m_graphics.get(), &tmp))
+		if(!loadWavefrontFromFile("GameResources/Models/Suzanne.obj", m_graphics.get(), &tmp))
 		{
 			throw std::runtime_error("Wavefront load failed.");
 		}
@@ -301,6 +305,18 @@ void TestEngine::initResources()
 
 		loadMeshFromPMXFile("GameResources/Alicia/Alicia_solid.pmx", nullptr, nullptr);
 	}
+
+	// Load Texture
+	{/*
+		ScratchImage	image;
+		TexMetadata		meta;
+		hr = LoadFromHDRFile(L"GameResources/Textures/TropicalRuins_3k.hdr", &meta, image);
+		THROW_IF_HFAILED(hr, "Texture load fail.")
+
+
+		hr = CreateTextureEx(m_graphics->m_device.Get(), meta, D3D12_RESOURCE_FLAG_NONE, false, m_texture_environment.GetAddressOf());
+		THROW_IF_HFAILED(hr, "Texture resource creation fail.")
+	*/}
 
 	// Create instacing buffer
 	{
@@ -362,10 +378,10 @@ void TestEngine::initResources()
 		ComPtr<ID3DBlob>	vs_blob;
 		ComPtr<ID3DBlob>	ps_blob;
 
-		hr = D3DReadFileToBlob(L"shaders/test_vs.cso", vs_blob.GetAddressOf());
+		hr = D3DReadFileToBlob(L"GameResources/shaders/test_vs.cso", vs_blob.GetAddressOf());
 		THROW_IF_HFAILED(hr, "Can not open the vertex shader file.")
 
-		hr = D3DReadFileToBlob(L"shaders/test_ps.cso", ps_blob.GetAddressOf());
+		hr = D3DReadFileToBlob(L"GameResources/shaders/test_ps.cso", ps_blob.GetAddressOf());
 		THROW_IF_HFAILED(hr, "Can not open the pixel shader file.")
 
 
@@ -424,7 +440,6 @@ void TestEngine::initResources()
 		m_pso.reset(new PipelineState());
 		m_pso->init(m_graphics.get(), &rs_desc, &ps_desc);
 	}
-
 }
 
 void TestEngine::setRTVCurrent()
@@ -450,9 +465,6 @@ void TestEngine::setRTVCurrent()
 
 void TestEngine::update()
 {
-	printf("\r FPS : %f", 1.0/m_time_delta);
-
-
 	auto xr = XInputGetState(0, &m_xinput_state);
 	if(xr==ERROR_SUCCESS)
 	{
@@ -503,20 +515,41 @@ void TestEngine::update()
 		//m_phase = (float)m_xinput_state.Gamepad.bRightTrigger/(float)MAXBYTE;
 	}
 
+	// debug window
 	m_imgui->newFrame();
 	{
-		bool b=true;
-		//ImGui::ShowDemoWindow(&b);
+		if( m_demo_window )
+			ImGui::ShowDemoWindow(&m_demo_window);
 
 		ImGui::Begin("Debug");
 		{
+			ImGui::Checkbox("Show Demo Window", &m_demo_window);
 			ImGui::SliderFloat("Phase", &m_phase, 0.f, 1.f);
+			
+			ImGui::Text("Camera");
+			ImGui::InputFloat3("Position", reinterpret_cast<float*>(&m_cam_pos));
+			ImGui::InputFloat3("Rotation", reinterpret_cast<float*>(&m_cam_rot));
+			ImGui::SliderFloat("Fov", &m_cam_fov, 0.1f, 179.f);
 		}
 		ImGui::End();
 	}
+
+	// debug drawer
+	{
+		XMFLOAT3 lp[]={
+			{0,0,0},
+			{10,10,0},
+			{20,10,0},
+			{-20,5,-20},
+			{-20,0,0},
+		};
+
+		m_debug_drawer->drawLines(lp, 5, XMColorRGBToSRGB(Colors::Red), XMColorRGBToSRGB(Colors::Blue));
+		m_debug_drawer->drawWireCube(XMVectorSet(5, 5, 5, 1), XMVectorSet(5,5,5,1), g_XMZero, XMColorRGBToSRGB(Colors::Red));
+	}
 }
 
-void TestEngine::draw()
+void TestEngine::render()
 {
 	auto edge = floorf(sqrtf(m_config.instacing_count));
 	for(uint32_t i=0; i<m_config.instacing_count-1; i++)
@@ -562,7 +595,7 @@ void TestEngine::draw()
 
 		XMStoreFloat4x4(
 			&it->world,
-			XMMatrixTransformation(XMVectorZero(), XMQuaternionIdentity(), XMVectorSet(100, 0.1, 100, 1), XMVectorZero(), XMQuaternionIdentity(), XMVectorZero())
+			XMMatrixTransformation(XMVectorZero(), XMQuaternionIdentity(), XMVectorSet(100, 100, 1, 1), XMVectorZero(), XMQuaternionRotationAxis(XMVectorSet(1,0,0,0),XMConvertToRadians(90.f)), XMVectorZero())
 		);
 		XMStoreFloat4(
 			&it->color,
@@ -570,12 +603,27 @@ void TestEngine::draw()
 		);
 	}
 
-
 	setRTVCurrent();
+
+	D3D12_VIEWPORT vp;
+	vp.Width	= m_config.width;
+	vp.Height	= m_config.height;
+	vp.TopLeftX = vp.TopLeftY = 0;
+	vp.MinDepth = 0.f;
+	vp.MaxDepth	= 1.f;
+	m_gfx_context->setViewports(1, &vp);
+
+	D3D12_RECT sr;
+	sr.left		= sr.top = 0;
+	sr.right	= m_config.width;
+	sr.bottom	= m_config.height;
+	m_gfx_context->setScissorRects(1, &sr);
+
 
 	auto cmd_queue	= m_graphics->m_cmd_queue.Get();
 	auto cmd_alloc	= m_gfx_context->m_cmd_alloc.Get();
 	auto cmd_list	= m_gfx_context->m_cmd_list.Get();
+	ID3D12CommandList* cmd_lists[] ={cmd_list};
 
 	m_gfx_context->begin();
 	do{
@@ -589,34 +637,19 @@ void TestEngine::draw()
 			auto look_forward	= XMVector3Rotate(XMVectorSet(0, 0, 1, 0), XMQuaternionRotationRollPitchYawFromVector(XMLoadFloat3(&m_cam_rot)));
 			auto look_up		= XMVector3Rotate(XMVectorSet(0, 1, 0, 0), XMQuaternionRotationRollPitchYawFromVector(XMLoadFloat3(&m_cam_rot)));
 			auto aspect			= (float)m_config.width/(float)m_config.height;
-			auto fov			= XMConvertToRadians(60.f);
+			auto fov			= XMConvertToRadians(m_cam_fov);
 
-			XMStoreFloat4x4(
-				&su.view,
-				XMMatrixLookToLH(XMLoadFloat3(&m_cam_pos), look_forward, look_up)
-			);
-			XMStoreFloat4x4(
-				&su.projection,
-				XMMatrixPerspectiveFovLH(fov,aspect,0.1f,1000.f)
-			);
+			auto view = XMMatrixLookToLH(XMLoadFloat3(&m_cam_pos), look_forward, look_up);
+			auto proj = XMMatrixPerspectiveFovLH(fov, aspect, 0.1f, 1000.f);
+
+			XMStoreFloat4x4(&su.view, view);
+			XMStoreFloat4x4(&su.projection, proj);
 			su.camera_position = m_cam_pos;
 
 			cmd_list->SetGraphicsRoot32BitConstants(0, sizeof(ShaderUniforms)/4, &su, 0);
+
+			m_debug_drawer->setVPMatrix(view, proj);
 		}
-
-		D3D12_VIEWPORT vp;
-		vp.Width	= m_config.width;
-		vp.Height	= m_config.height;
-		vp.TopLeftX = vp.TopLeftY = 0;
-		vp.MinDepth = 0.f;
-		vp.MaxDepth	= 1.f;
-		cmd_list->RSSetViewports(1, &vp);
-
-		D3D12_RECT sr;
-		sr.left		= sr.top = 0;
-		sr.right	= m_config.width;
-		sr.bottom	= m_config.height;
-		cmd_list->RSSetScissorRects(1, &sr);
 
 		const float cval[] ={0.5f,0.5f,0.5f,1.f};
 		m_gfx_context->clearRenderTarget(0, cval, 0, nullptr);
@@ -629,17 +662,36 @@ void TestEngine::draw()
 			cmd_list->IASetVertexBuffers		(0, m_vertex_views.size(), m_vertex_views.data());
 			cmd_list->IASetIndexBuffer			(&p_mesh->m_ib_view);
 
-			cmd_list->DrawIndexedInstanced(p_mesh->m_submesh_pairs[0].count, m_config.instacing_count, p_mesh->m_submesh_pairs[0].offset, 0, 0);
+			cmd_list->DrawIndexedInstanced(p_mesh->m_submesh_pairs[0].count, m_config.instacing_count-1, p_mesh->m_submesh_pairs[0].offset, 0, 0);
 		}
+		{
+			auto p_mesh = m_mesh_plane.get();
 
-		// render imgui
-		m_imgui->render(m_gfx_context.get());
+			m_vertex_views[0] = p_mesh->m_vb_view;
+			cmd_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+			cmd_list->IASetVertexBuffers(0, m_vertex_views.size(), m_vertex_views.data());
+			cmd_list->IASetIndexBuffer(&p_mesh->m_ib_view);
+
+			cmd_list->DrawIndexedInstanced(p_mesh->m_submesh_pairs[0].count, 1, p_mesh->m_submesh_pairs[0].offset, 0, m_config.instacing_count-1);
+		}
 	}
 	while(false);
 	m_gfx_context->end();
-
-	ID3D12CommandList* cmd_lists[] ={cmd_list};
 	cmd_queue->ExecuteCommandLists(1, cmd_lists);
+	m_graphics->waitForDone();
+
+	// Render DebugDrawer
+	m_debug_drawer->render(m_graphics.get(), m_gfx_context.get());
+	m_debug_drawer->flush();
+
+	// render imgui
+	m_gfx_context->begin();
+	{
+		m_imgui->render(m_gfx_context.get());
+	}
+	m_gfx_context->end();
+	cmd_queue->ExecuteCommandLists(1, cmd_lists);
+
 
 	m_swapchain->Present(1, 0);
 	m_graphics->waitForDone();
@@ -660,8 +712,10 @@ int TestEngine::run(int argc, char** argv)
 	m_config.instacing_count	= 49;
 	m_cam_pos.x = 0;
 	m_cam_pos.y = 1.f;
-	m_cam_pos.z = -40.f;
+	m_cam_pos.z = 30.f;
 	m_cam_rot.x = m_cam_rot.y = m_cam_rot.z = 0.f;
+	m_cam_rot.y = 3.14159f;
+	m_cam_fov	= 60.f;
 
 
 	// Register Window class
@@ -709,6 +763,11 @@ int TestEngine::run(int argc, char** argv)
 
 		m_imgui.reset(new ImguiModule());
 		m_imgui->init(m_graphics.get(), m_hwnd, 2, DXGI_FORMAT_R8G8B8A8_UNORM_SRGB);
+		ImGui::StyleColorsDark();
+		m_demo_window = false;
+
+		m_debug_drawer.reset(new DebugDrawer());
+		m_debug_drawer->init(m_graphics.get());
 	}
 	catch(std::exception& e)
 	{
@@ -744,7 +803,7 @@ int TestEngine::run(int argc, char** argv)
 		m_time_counted	+= m_time_delta;
 
 		update();
-		draw();
+		render();
 		std::this_thread::yield();
 	}
 	m_instacing_buffer->Unmap(0, nullptr);

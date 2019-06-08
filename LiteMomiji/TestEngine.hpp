@@ -7,6 +7,8 @@
 #include "PipelineState.hpp"
 #include "Mesh.hpp"
 #include "ImguiModule.hpp"
+#include "DebugDrawer.hpp"
+
 #include <Xinput.h>
 #include <vector>
 #include <chrono>
@@ -43,9 +45,13 @@ class TestEngine{
 			std::vector<D3D12_VERTEX_BUFFER_VIEW>	m_vertex_views;
 			UINT8*									m_instacing_ptr;
 
+			// Images
+			Microsoft::WRL::ComPtr<ID3D12Resource>	m_texture_environment;
+
 			std::unique_ptr<PipelineState>	m_pso;
 			DirectX::XMFLOAT3	m_cam_pos;
 			DirectX::XMFLOAT3	m_cam_rot;
+			float				m_cam_fov;
 
 			HINSTANCE	m_instance;
 			HWND		m_hwnd;
@@ -60,12 +66,16 @@ class TestEngine{
 
 			// Imgui
 			std::unique_ptr<ImguiModule>	m_imgui;
+			bool	m_demo_window;
+
+			// Debug
+			std::unique_ptr<DebugDrawer>	m_debug_drawer;
 
 	public:
 		/* Methods */
 			int run(int argc, char** argv);
 			void update();
-			void draw();
+			void render();
 			void setRTVCurrent();
 
 			void initGraphics();

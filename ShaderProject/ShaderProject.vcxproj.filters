@@ -16,6 +16,15 @@
     <None Include="ShadowCaster.hlsli">
       <Filter>Source Files</Filter>
     </None>
+    <None Include="Common.hlsli">
+      <Filter>Source Files</Filter>
+    </None>
+    <None Include="SkyboxTest.hlsli">
+      <Filter>Source Files</Filter>
+    </None>
+    <None Include="DebugDrawer_Line.hlsli">
+      <Filter>Source Files</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Test_ps.hlsl">
@@ -25,6 +34,15 @@
       <Filter>Source Files</Filter>
     </FxCompile>
     <FxCompile Include="DebugView_ps.hlsl">
+      <Filter>Source Files</Filter>
+    </FxCompile>
+    <FxCompile Include="SkyboxTest_vs.hlsl">
+      <Filter>Source Files</Filter>
+    </FxCompile>
+    <FxCompile Include="DebugDrawer_Line_vs.hlsl">
+      <Filter>Source Files</Filter>
+    </FxCompile>
+    <FxCompile Include="DebugDrawer_Line_ps.hlsl">
       <Filter>Source Files</Filter>
     </FxCompile>
   </ItemGroup>

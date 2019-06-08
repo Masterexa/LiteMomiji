@@ -1,9 +1,8 @@
 #include "Test.hlsli"
 
-#define sqr(x) (x*x)
-static float	PI				= 3.14159;
-static float3	TEST_LIGHT		= {0.0,1.0,-1.0};
-static float3	TEST_AMBIENT	= {0.1,0.1,0.1};
+static float3	TEST_LIGHT			= {0.0,1.0,-1.0};
+static float3	TEST_AMBIENT		= {0.3,0.3,0.3};
+static float3	TEST_AMBIENT_NADIR	= {0.01,0.01,0.01};
 
 
 struct BSDFIn{
@@ -122,6 +121,10 @@ float3 phong(in BSDFIn pin)
 	return ((1/PI)*(1-pin.metallic)*pin.albedo + pow(NdH,lerp(1000,1,pin.roughness))*spec0 ) * NdL;
 }
 
+float3 hemiAmbient(float3 N, float3 L)
+{
+	return lerp(TEST_AMBIENT_NADIR, TEST_AMBIENT, dot(N, L)*0.5+0.5);
+}
 
 PSOut main(VSOut psin)
 {
@@ -140,7 +143,7 @@ PSOut main(VSOut psin)
 	bsdf.specular	= 0.5;
 	bsdf.anisotropic= 0.0;
 
-	psout.color.rgb	= bsdf.albedo*TEST_AMBIENT + physically(bsdf);
+	psout.color.rgb	= bsdf.albedo*hemiAmbient(bsdf.N,float3(0,1,0)) + physically(bsdf);
 	psout.color.a	= psin.color.a;
 
 

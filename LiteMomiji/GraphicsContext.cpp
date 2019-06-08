@@ -11,6 +11,8 @@ GraphicsContext::GraphicsContext() :
 	m_ds_enabled(false)
 {
 	m_vb_views.reserve(8);
+	m_viewports_count		= 0;
+	m_scissor_rects_count	= 0;
 }
 
 void GraphicsContext::init(Graphics* graph)
@@ -103,6 +105,15 @@ void GraphicsContext::begin()
 	auto ds_handle = m_dsv_heap->GetCPUDescriptorHandleForHeapStart();
 	m_cmd_list->OMSetRenderTargets(m_rtv_count, &rt_handle, TRUE, m_ds_enabled ? &ds_handle : nullptr);
 
+	if(m_viewports_count>0)
+	{
+		m_cmd_list->RSSetViewports(m_viewports_count, m_viewports);
+	}
+	if(m_scissor_rects_count>0)
+	{
+		m_cmd_list->RSSetScissorRects(m_scissor_rects_count, m_scissor_rects);
+	}
+
 	m_recoding = true;
 }
 
@@ -123,6 +134,36 @@ void GraphicsContext::setPipelineState(PipelineState* pso)
 {
 	m_cmd_list->SetPipelineState(pso->m_pipeline_state.Get());
 	m_cmd_list->SetGraphicsRootSignature(pso->m_root_signature.Get());
+}
+
+void GraphicsContext::setViewports(uint32_t vp_cnt, D3D12_VIEWPORT* vp)
+{
+	m_viewports_count = vp_cnt;
+	if(vp_cnt==0)
+	{
+		return;
+	}
+
+	memcpy(m_viewports, vp, sizeof(D3D12_VIEWPORT)*m_viewports_count);
+	if(m_recoding)
+	{
+		m_cmd_list->RSSetViewports(m_viewports_count, m_viewports);
+	}
+}
+
+void GraphicsContext::setScissorRects(uint32_t sc_cnt, D3D12_RECT* sc)
+{
+	m_scissor_rects_count = sc_cnt;
+	if(sc_cnt==0)
+	{
+		return;
+	}
+
+	memcpy(m_scissor_rects, sc, sizeof(D3D12_RECT)*m_scissor_rects_count);
+	if(m_recoding)
+	{
+		m_cmd_list->RSSetScissorRects(m_scissor_rects_count, m_scissor_rects);
+	}
 }
 
 void GraphicsContext::clearRenderTarget(uint32_t num, const FLOAT rgba[4], UINT rect_cnt, const D3D12_RECT* rects)

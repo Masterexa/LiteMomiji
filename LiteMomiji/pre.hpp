@@ -8,6 +8,7 @@
 #include <DirectXMath.h>
 #include <DirectXPackedVector.h>
 #include <DirectXColors.h>
+#include <d3dcompiler.h>
 #include <stdexcept>
 #include <memory>
 
@@ -26,6 +27,7 @@ struct Mesh;
 struct Model;
 struct Material;
 struct ImguiModule;
+struct DebugDrawer;
 
 
 template<typename T>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ImportGroup Label="PropertySheets" />
+  <PropertyGroup Label="UserMacros">
+    <DIRECTX_TEX_DIR>$(SolutionDir)Submodules\DirectXTex\</DIRECTX_TEX_DIR>
+  </PropertyGroup>
+  <PropertyGroup>
+    <IncludePath>$(DIRECTX_TEX_DIR)DirectXTex;$(IncludePath)</IncludePath>
+    <LibraryPath>$(DIRECTX_TEX_DIR)DirectXTex\Bin\Desktop_2017_Win10\$(Platform)\$(Configuration)\;$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
+  <ItemDefinitionGroup />
+  <ItemGroup>
+    <BuildMacro Include="DIRECTX_TEX_DIR">
+      <Value>$(DIRECTX_TEX_DIR)</Value>
+    </BuildMacro>
+  </ItemGroup>
+</Project>
