@@ -17,6 +17,7 @@ struct Graphics{
 			UINT64	m_fence_value;
 			HANDLE	m_fence_event;
 			UINT	m_RTV_INC;
+			UINT	m_SRV_INC;
 
 
 		/* Methods */

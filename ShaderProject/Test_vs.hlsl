@@ -25,6 +25,7 @@ VSOut main(Vertex v)
 	vs_out.binormal	= cross(vs_out.normal, vs_out.tangent);
 	vs_out.uv0		= v.uv0;
 	vs_out.color	= v.color * v.instance_color;
+    vs_out.pbs_param = v.instance_pbsparam;
 
 	return vs_out;
 }

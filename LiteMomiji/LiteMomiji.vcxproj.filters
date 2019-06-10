@@ -75,6 +75,12 @@
     <ClInclude Include="DebugDrawer.hpp">
       <Filter>Source Files</Filter>
     </ClInclude>
+    <ClInclude Include="Shader.hpp">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Input.hpp">
+      <Filter>Source Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Graphics.cpp">
@@ -120,6 +126,9 @@
       <Filter>IMGUI</Filter>
     </ClCompile>
     <ClCompile Include="DebugDrawer.cpp">
+      <Filter>Source Files\&lt;src&gt;</Filter>
+    </ClCompile>
+    <ClCompile Include="Input.cpp">
       <Filter>Source Files\&lt;src&gt;</Filter>
     </ClCompile>
   </ItemGroup>

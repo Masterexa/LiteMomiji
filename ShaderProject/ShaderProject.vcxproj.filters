@@ -25,6 +25,12 @@
     <None Include="DebugDrawer_Line.hlsli">
       <Filter>Source Files</Filter>
     </None>
+    <None Include="SkyboxSimple.hlsli">
+      <Filter>Source Files</Filter>
+    </None>
+    <None Include="HoshiyukiToon.hlsli">
+      <Filter>Source Files</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Test_ps.hlsl">
@@ -43,6 +49,12 @@
       <Filter>Source Files</Filter>
     </FxCompile>
     <FxCompile Include="DebugDrawer_Line_ps.hlsl">
+      <Filter>Source Files</Filter>
+    </FxCompile>
+    <FxCompile Include="SkyboxSimple_vs.hlsl">
+      <Filter>Source Files</Filter>
+    </FxCompile>
+    <FxCompile Include="SkyboxSimple_ps.hlsl">
       <Filter>Source Files</Filter>
     </FxCompile>
   </ItemGroup>

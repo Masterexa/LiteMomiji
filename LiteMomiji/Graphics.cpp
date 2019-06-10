@@ -86,6 +86,7 @@ UINT64 getRequiredIntermediateSize(
 			}
 
 			m_RTV_INC = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+			m_SRV_INC = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 		}
 
 		{

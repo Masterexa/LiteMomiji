@@ -9,8 +9,11 @@
 #include <DirectXPackedVector.h>
 #include <DirectXColors.h>
 #include <d3dcompiler.h>
+#include <Xinput.h>
 #include <stdexcept>
 #include <memory>
+#include <string>
+#include <assert.h>
 
 struct Vertex{
 	DirectX::XMFLOAT3	position;
@@ -23,6 +26,7 @@ struct Vertex{
 struct Graphics;
 struct GraphicsContext;
 struct PipelineState;
+struct Shader;
 struct Mesh;
 struct Model;
 struct Material;

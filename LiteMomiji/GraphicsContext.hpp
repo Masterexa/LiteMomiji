@@ -37,6 +37,9 @@ struct GraphicsContext{
 			D3D12_RECT		m_scissor_rects[D3D12_VIEWPORT_AND_SCISSORRECT_MAX_INDEX];
 			size_t			m_scissor_rects_count;
 
+			Microsoft::WRL::ComPtr<ID3D12DescriptorHeap>	m_srv_heap;
+
+
 		/* inits */
 			GraphicsContext();
 			void init(Graphics* graph);

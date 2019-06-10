@@ -57,6 +57,13 @@ void GraphicsContext::init(Graphics* graph)
 		}
 		m_rtv_count		= 0;
 		m_ds_enabled	= false;
+
+
+		hdesc.NumDescriptors	= 8;
+		hdesc.Type				= D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+		hdesc.Flags				= D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+		hr = device->CreateDescriptorHeap(&hdesc, IID_PPV_ARGS(m_srv_heap.GetAddressOf()));
+		THROW_IF_HFAILED(hr, "SRV heap creation fail.")
 	}
 }
 

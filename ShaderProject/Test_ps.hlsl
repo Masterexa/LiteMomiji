@@ -1,7 +1,7 @@
 #include "Test.hlsli"
 
-static float3	TEST_LIGHT			= {0.0,1.0,-1.0};
-static float3	TEST_AMBIENT		= {0.3,0.3,0.3};
+static float3	TEST_LIGHT			= {0.0,1.0,0.5};
+static float3	TEST_AMBIENT		= {0.1,0.1,0.1};
 static float3	TEST_AMBIENT_NADIR	= {0.01,0.01,0.01};
 
 
@@ -18,6 +18,7 @@ struct BSDFIn{
 	float	sheen_tint;
 	float	clear_coat;
 	float	clear_coat_gloss;
+	float	occlusion;
 };
 
 
@@ -61,69 +62,81 @@ float smithG_GGX_aniso(float NdV, float VdX, float VdY, float ax, float ay)
 	return 1 / (NdV + sqrt(sqr(VdX*ax) + sqr(VdY*ay) + sqr(NdV)));
 }
 
-float3 physically(in BSDFIn pin)
+float3 physically(in BSDFIn bsdf)
 {
-	float NdL = max(0,dot(pin.N, pin.L));
-	float NdV = max(0,dot(pin.N, pin.V));
-	float NdH = dot(pin.N, pin.H);
-	float LdH = dot(pin.L, pin.H);
+	float NdL = max(0,dot(bsdf.N, bsdf.L));
+	float NdV = max(0,dot(bsdf.N, bsdf.V));
+	float NdH = dot(bsdf.N, bsdf.H);
+	float LdH = dot(bsdf.L, bsdf.H);
 
-	float lum		= 0.3*pin.albedo.r + 0.6*pin.albedo.g + 0.1*pin.albedo.b;
-	float3 ctint	= pin.albedo/lum; //step(a,b) : a less then b
+	float lum		= 0.3*bsdf.albedo.r + 0.6*bsdf.albedo.g + 0.1*bsdf.albedo.b;
+	float3 ctint	= bsdf.albedo/lum; //step(a,b) : a less then b
 	//float3 ctint	= float3(1,1,1); //step(a,b) : a less then b
-	float3 spec0	= lerp(pin.specular*0.08*lerp(float3(1, 1, 1), ctint, pin.specular_tint), pin.albedo, pin.metallic);
+	float3 spec0	= lerp(bsdf.specular*0.08*lerp(float3(1, 1, 1), ctint, bsdf.specular_tint), bsdf.albedo, bsdf.metallic);
 
 	// diffuse
 	float FL	= fresnel(NdL);
 	float FV	= fresnel(NdV);
-	float Fd90	= 0.5 + 2*LdH*LdH*pin.roughness;
+	float Fd90	= 0.5 + 2*LdH*LdH*bsdf.roughness;
 	float Fd	= lerp(1.0, Fd90, FL) * lerp(1.0, Fd90, FV);
 
 	// Specular
-	float aspect = sqrt(1-pin.anisotropic*0.9);
-	float ax	= max(0.001, sqr(pin.roughness)/aspect);
-	float ay	= max(0.001, sqr(pin.roughness)*aspect);
-	//float Ds	= GTR2_aniso(NdH, dot(pin.H,pin.B), dot(pin.H,pin.T), ax, ay);
-	float Ds	= GTR2(NdH, sqr(pin.roughness));
+	float aspect = sqrt(1-bsdf.anisotropic*0.9);
+	float ax	= max(0.001, sqr(bsdf.roughness)/aspect);
+	float ay	= max(0.001, sqr(bsdf.roughness)*aspect);
+	//float Ds	= GTR2_aniso(NdH, dot(bsdf.H,bsdf.B), dot(bsdf.H,bsdf.T), ax, ay);
+	float Ds	= GTR2(NdH, sqr(bsdf.roughness));
 	float FH	= fresnel(LdH);
 	float3 Fs	= lerp(spec0, float3(1, 1, 1), FH);
 	float Gs	=/*
-		smithG_GGX_aniso(NdL,dot(pin.L,pin.B), dot(pin.L, pin.T), ax, ay)
-		* smithG_GGX_aniso(NdV, dot(pin.V,pin.B), dot(pin.V,pin.T), ax, ay)*/
-		smithG_GGX(NdL, sqr(pin.roughness))*smithG_GGX(NdV, sqr(pin.roughness))
+		smithG_GGX_aniso(NdL,dot(bsdf.L,bsdf.B), dot(bsdf.L, bsdf.T), ax, ay)
+		* smithG_GGX_aniso(NdV, dot(bsdf.V,bsdf.B), dot(bsdf.V,bsdf.T), ax, ay)*/
+		smithG_GGX(NdL, sqr(bsdf.roughness))*smithG_GGX(NdV, sqr(bsdf.roughness))
 	;
 
 	// sheen
-	float3 sheen = FH*sqr(pin.sheen);
+	float3 sheen = FH*sqr(bsdf.sheen);
 
 	// clear coat
-	float Dr = GTR1(NdH, lerp(0.1, 0.001, pin.clear_coat_gloss));
+	float Dr = GTR1(NdH, lerp(0.1, 0.001, bsdf.clear_coat_gloss));
 	float Fr = lerp(0.04, 1.0, FH);
 	float Gr = smithG_GGX(NdL, 0.25) * smithG_GGX(NdV, 0.25);
 
 	return(
-		((1/PI) * Fd*pin.albedo) * (1-pin.metallic)
+		((1/PI) * Fd*bsdf.albedo) * (1-bsdf.metallic)
 		+
-		Gs*Fs*Ds + 0.25*pin.clear_coat*Gr*Fr*Dr
+		Gs*Fs*Ds + 0.25*bsdf.clear_coat*Gr*Fr*Dr
 	)*NdL;
 }
 
-float3 phong(in BSDFIn pin)
+float3 phong(in BSDFIn bsdf)
 {
-	float NdL = saturate(dot(pin.N, pin.L));
-	float NdH = saturate(dot(pin.N, pin.H));
+	float NdL = saturate(dot(bsdf.N, bsdf.L));
+	float NdH = saturate(dot(bsdf.N, bsdf.H));
 
-	float lum		= 0.3*pin.albedo.r + 0.6*pin.albedo.g + 0.1*pin.albedo.b;
-	float3 ctint	= lerp((pin.albedo/lum), float3(1, 1, 1), step(0, lum)); //step(a,b) : a less then b
-	float3 spec0	= lerp(pin.specular*0.08*lerp(float3(1, 1, 1), ctint, pin.specular_tint), pin.albedo, pin.metallic);
+	float lum		= 0.3*bsdf.albedo.r + 0.6*bsdf.albedo.g + 0.1*bsdf.albedo.b;
+	float3 ctint	= lerp((bsdf.albedo/lum), float3(1, 1, 1), step(0, lum)); //step(a,b) : a less then b
+	float3 spec0	= lerp(bsdf.specular*0.08*lerp(float3(1, 1, 1), ctint, bsdf.specular_tint), bsdf.albedo, bsdf.metallic);
 
-
-	return ((1/PI)*(1-pin.metallic)*pin.albedo + pow(NdH,lerp(1000,1,pin.roughness))*spec0 ) * NdL;
+	return ((1/PI)*(1-bsdf.metallic)*bsdf.albedo + pow(NdH,lerp(1000,1,bsdf.roughness))*spec0 ) * NdL;
 }
 
 float3 hemiAmbient(float3 N, float3 L)
 {
 	return lerp(TEST_AMBIENT_NADIR, TEST_AMBIENT, dot(N, L)*0.5+0.5);
+}
+
+float3 environment(float3 N, float3 V, float3 spec, float m)
+{
+	float	FV = fresnel(dot(N, V));
+	float3	Em = g_env_tex.Sample(g_ao_samp, reflect(-V, N)).rgb;
+
+    return lerp(FV,1,m)*spec*Em*10.0;
+}
+
+float3 ambient(float3 N, float3 albedo, float m)
+{
+    return hemiAmbient(N, float3(0, 1, 0)) * albedo * (1-m);
 }
 
 PSOut main(VSOut psin)
@@ -139,13 +152,20 @@ PSOut main(VSOut psin)
 	bsdf.H = normalize(bsdf.L+bsdf.V);
 
 	bsdf.albedo		= psin.color.rgb;
-	bsdf.roughness	= 0.05;
-	bsdf.specular	= 0.5;
+	bsdf.roughness	= psin.pbs_param.r;
+	bsdf.specular	= 1.0;
+    bsdf.metallic   = psin.pbs_param.g;
 	bsdf.anisotropic= 0.0;
+	bsdf.occlusion	= lerp(1.0, g_ao_tex.Sample(g_ao_samp, psin.uv0).g, g_ao);
 
-	psout.color.rgb	= bsdf.albedo*hemiAmbient(bsdf.N,float3(0,1,0)) + physically(bsdf);
+    float lum = 0.3 * bsdf.albedo.r + 0.6 * bsdf.albedo.g + 0.1 * bsdf.albedo.b;
+    float3 ctint = lerp((bsdf.albedo / lum), float3(1, 1, 1), step(0, lum)); //step(a,b) : a less then b
+    float3 spec0 = lerp(bsdf.specular * 0.08 * lerp(float3(1, 1, 1), ctint, bsdf.specular_tint), bsdf.albedo, bsdf.metallic);
+
+
+    psout.color.rgb += environment(bsdf.N, bsdf.V, spec0, bsdf.metallic) + ambient(bsdf.N, bsdf.albedo*bsdf.occlusion, bsdf.metallic);
+	psout.color.rgb	+= physically(bsdf)*2.0;
 	psout.color.a	= psin.color.a;
-
 
 	return psout;
 }

@@ -112,7 +112,10 @@ bool loadWavefrontFromFile(char const* path, Graphics* graphics, Mesh** out_mode
 
 		long pos = ftell(fp);
 		XMStoreFloat3(&vert.position, loadVector(fp, Vs, v_));
-		XMStoreFloat2(&vert.uv, loadVector(fp, VTs, vt_));
+		XMStoreFloat2(
+			&vert.uv,
+			XMVectorSubtract(XMVectorSet(0, 1, 0, 1), XMVectorMultiply(XMVectorSet(-1, 1, -1, 1), loadVector(fp, VTs, vt_)))
+		);
 		XMStoreFloat3(&vert.normal, XMVectorMultiply(loadVector(fp, VNs, vn_),XMVectorSet(1,1,1,1)) );
 		XMStoreFloat4(&vert.color, XMVectorSet(1, 1, 1, 1));
 
