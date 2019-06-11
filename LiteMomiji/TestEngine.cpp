@@ -118,7 +118,7 @@ int TestEngine::run(int argc, char** argv)
 	m_cnt			= 0;
 	m_instance		= GetModuleHandle(nullptr);
 
-	m_config.instacing_count	= 49;
+	m_config.instancing_count	= 49;
 	m_cam_pos.x = 0;
 	m_cam_pos.y = 1.f;
 	m_cam_pos.z = 30.f;
@@ -522,7 +522,7 @@ void TestEngine::initResources()
 		}
 	}
 
-	// Create instacing buffer
+	// Create instancing buffer
 	{
 		D3D12_HEAP_PROPERTIES	prop = {};
 		prop.Type					= D3D12_HEAP_TYPE_UPLOAD;
@@ -534,7 +534,7 @@ void TestEngine::initResources()
 		D3D12_RESOURCE_DESC desc ={};
 		desc.Dimension			= D3D12_RESOURCE_DIMENSION_BUFFER;
 		desc.Alignment			= 0;
-		desc.Width				= sizeof(InstancingData) * m_config.instacing_count;
+		desc.Width				= sizeof(InstancingData) * m_config.instancing_count;
 		desc.Height				= 1;
 		desc.DepthOrArraySize	= 1;
 		desc.MipLevels			= 1;
@@ -550,14 +550,14 @@ void TestEngine::initResources()
 			&desc,
 			D3D12_RESOURCE_STATE_GENERIC_READ,
 			nullptr,
-			IID_PPV_ARGS(m_instacing_buffer.GetAddressOf())
+			IID_PPV_ARGS(m_instancing_buffer.GetAddressOf())
 		);
-		THROW_IF_HFAILED(hr, "Instacing buffer creation fail.")
+		THROW_IF_HFAILED(hr, "Instancing buffer creation fail.")
 
-		m_vertex_views[1].BufferLocation	= m_instacing_buffer->GetGPUVirtualAddress();
+		m_vertex_views[1].BufferLocation	= m_instancing_buffer->GetGPUVirtualAddress();
 		m_vertex_views[1].StrideInBytes		= sizeof(InstancingData);
-		m_vertex_views[1].SizeInBytes		= sizeof(InstancingData) * m_config.instacing_count;
-		hr = m_instacing_buffer->Map(0, nullptr, (void**)&m_instacing_ptr);
+		m_vertex_views[1].SizeInBytes		= sizeof(InstancingData) * m_config.instancing_count;
+		hr = m_instancing_buffer->Map(0, nullptr, (void**)&m_instancing_ptr);
 	}
 
 	// Create PSO
@@ -761,7 +761,7 @@ void TestEngine::shutdown()
 {
 	m_gfx->waitForDone();
 
-	m_instacing_buffer->Unmap(0, nullptr);
+	m_instancing_buffer->Unmap(0, nullptr);
 	m_imgui->shutdown();
 
 	m_gfx_context->setRenderTarget(nullptr);
@@ -869,7 +869,7 @@ void TestEngine::drawObjects(ID3D12GraphicsCommandList* cmd_list)
 		cmd_list->IASetVertexBuffers(0, m_vertex_views.size(), m_vertex_views.data());
 		cmd_list->IASetIndexBuffer(&p_mesh->m_ib_view);
 
-		cmd_list->DrawIndexedInstanced(p_mesh->m_submesh_pairs[0].count, m_config.instacing_count-1, p_mesh->m_submesh_pairs[0].offset, 0, 0);
+		cmd_list->DrawIndexedInstanced(p_mesh->m_submesh_pairs[0].count, m_config.instancing_count-1, p_mesh->m_submesh_pairs[0].offset, 0, 0);
 	}
 	{
 		auto p_mesh = m_mesh_plane.get();
@@ -879,16 +879,16 @@ void TestEngine::drawObjects(ID3D12GraphicsCommandList* cmd_list)
 		cmd_list->IASetVertexBuffers(0, m_vertex_views.size(), m_vertex_views.data());
 		cmd_list->IASetIndexBuffer(&p_mesh->m_ib_view);
 
-		cmd_list->DrawIndexedInstanced(p_mesh->m_submesh_pairs[0].count, 1, p_mesh->m_submesh_pairs[0].offset, 0, m_config.instacing_count-1);
+		cmd_list->DrawIndexedInstanced(p_mesh->m_submesh_pairs[0].count, 1, p_mesh->m_submesh_pairs[0].offset, 0, m_config.instancing_count-1);
 	}
 }
 
 void TestEngine::render()
 {
-	auto edge = floorf(sqrtf(m_config.instacing_count));
-	for(uint32_t i=0; i<m_config.instacing_count-1; i++)
+	auto edge = floorf(sqrtf(m_config.instancing_count));
+	for(uint32_t i=0; i<m_config.instancing_count-1; i++)
 	{
-		float	r		= (float)i/(float)m_config.instacing_count * 20.f;
+		float	r		= (float)i/(float)m_config.instancing_count * 20.f;
 		float	idx		= (float)i*10.f;
 		auto	freq	= [&](float m){return (idx+m_time_counted)*m; };
 		float	tan_f	= tanf(idx);
@@ -913,7 +913,7 @@ void TestEngine::render()
 
 
 
-		auto it = &((InstancingData*)m_instacing_ptr)[i];
+		auto it = &((InstancingData*)m_instancing_ptr)[i];
 		XMStoreFloat4x4(
 			&it->world,
 			XMMatrixTransformation(XMVectorZero(), XMQuaternionIdentity(), XMVectorSet(1,1,1,1), XMVectorZero(), rot, pos)
@@ -929,7 +929,7 @@ void TestEngine::render()
 	}
 	// draw plane
 	{
-		auto it = &((InstancingData*)m_instacing_ptr)[m_config.instacing_count-1];
+		auto it = &((InstancingData*)m_instancing_ptr)[m_config.instancing_count-1];
 
 		XMStoreFloat4x4(
 			&it->world,

@@ -19,7 +19,7 @@
 struct Config{
 	uint32_t	width;
 	uint32_t	height;
-	uint32_t	instacing_count;
+	uint32_t	instancing_count;
 };
 
 
@@ -49,9 +49,9 @@ class TestEngine{
 
 
 			// Mesh State
-			Microsoft::WRL::ComPtr<ID3D12Resource>	m_instacing_buffer;
+			Microsoft::WRL::ComPtr<ID3D12Resource>	m_instancing_buffer;
 			std::vector<D3D12_VERTEX_BUFFER_VIEW>	m_vertex_views;
-			UINT8*									m_instacing_ptr;
+			UINT8*									m_instancing_ptr;
 
 			// Meshes
 			std::unique_ptr<Mesh> m_mesh_cube;

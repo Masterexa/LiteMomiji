@@ -16,7 +16,7 @@ struct DebugDrawerTextureVertex
 	DirectX::XMFLOAT2	uv;
 };
 
-struct DebugDrawerTextureInstacing
+struct DebugDrawerTextureInstancing
 {
 	DirectX::XMFLOAT4	rect;
 	float				z_order;
@@ -56,7 +56,7 @@ struct DebugDrawer{
 			size_t								m_line_cnt;
 			size_t								m_line_buffer_capacity;
 
-			std::vector<DebugDrawerTextureInstacing>	m_texture_list;
+			std::vector<DebugDrawerTextureInstancing>	m_texture_list;
 			size_t		m_texture_capacity;
 			size_t		m_texture_cnt;
 

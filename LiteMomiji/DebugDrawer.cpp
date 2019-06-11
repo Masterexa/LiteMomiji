@@ -101,8 +101,8 @@ void DebugDrawer::init(Graphics* graph)
 
 		addr_gpu += m_tex_index_view.SizeInBytes;
 		m_tex_vertex_view[1].BufferLocation	= addr_gpu;
-		m_tex_vertex_view[1].StrideInBytes	= sizeof(DebugDrawerTextureInstacing);
-		m_tex_vertex_view[1].SizeInBytes	= sizeof(DebugDrawerTextureInstacing)*8;
+		m_tex_vertex_view[1].StrideInBytes	= sizeof(DebugDrawerTextureInstancing);
+		m_tex_vertex_view[1].SizeInBytes	= sizeof(DebugDrawerTextureInstancing)*8;
 
 		m_line_buffer_capacity = m_line_view[0].SizeInBytes/sizeof(DebugDrawerLineVertex);
 		m_line_list.reserve(m_line_buffer_capacity);
@@ -368,7 +368,7 @@ void DebugDrawer::render(Graphics* graph, GraphicsContext* context)
 	{
 		return;
 	}
-	memcpy(m_buffer_texture_start, m_texture_list.data(), sizeof(DebugDrawerTextureInstacing)*inst_cnt);
+	memcpy(m_buffer_texture_start, m_texture_list.data(), sizeof(DebugDrawerTextureInstancing)*inst_cnt);
 	{
 		static const DebugDrawerTextureVertex tex_verts[]=
 		{
