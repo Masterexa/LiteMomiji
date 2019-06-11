@@ -30,6 +30,8 @@ struct Shader;
 struct Mesh;
 struct Model;
 struct Material;
+struct RenderTarget;
+
 struct ImguiModule;
 struct DebugDrawer;
 

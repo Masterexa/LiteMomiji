@@ -4,6 +4,7 @@
 /* includes */
 #include "Graphics.hpp"
 #include "PipelineState.hpp"
+#include "RenderTarget.hpp"
 
 GraphicsContext::GraphicsContext() :
 	m_graphics(nullptr),
@@ -16,6 +17,8 @@ GraphicsContext::GraphicsContext() :
 
 	m_rtv_handle.ptr = 0;
 	m_dsv_handle.ptr = 0;
+
+	m_render_target = nullptr;
 }
 
 void GraphicsContext::init(Graphics* graph)
@@ -58,11 +61,41 @@ void GraphicsContext::setRenderTarget(ID3D12Resource** rt_res, uint32_t rtv_cnt,
 	m_rtv_handle = rtv;
 	m_dsv_handle = dsv;
 	m_ds_enabled = dsv.ptr!=0;
+
+	m_render_target = nullptr;
+}
+
+void GraphicsContext::setRenderTarget(RenderTarget* target)
+{
+	m_render_target		= target;
+	m_prev_rt_index		= UINT32_MAX;
 }
 
 
 void GraphicsContext::begin()
 {
+	if(m_recoding)
+	{
+		return;
+	}
+	if(m_render_target && m_render_target->m_buffer_current_index!=m_prev_rt_index)
+	{
+		m_rtv_handle = m_render_target->getCurrentRTV();
+		m_dsv_handle = m_render_target->getDSV();
+
+		m_rtv_count		= m_render_target->m_target_count;
+		m_ds_enabled	= m_dsv_handle.ptr!=0;
+
+
+		auto offset = m_render_target->m_target_count * m_render_target->m_buffer_current_index;
+		for(size_t i = 0; i <m_rtv_count; i++)
+		{
+			m_rtv_barriers[i].Transition.pResource = m_render_target->m_buffers[offset+i];
+		}
+
+		m_prev_rt_index = m_render_target->m_buffer_current_index;
+	}
+
 	m_cmd_alloc->Reset();
 	m_cmd_list->Reset(m_cmd_alloc.Get(), nullptr);
 
@@ -81,6 +114,7 @@ void GraphicsContext::begin()
 	auto rt_handle = m_rtv_handle;
 	auto ds_handle = m_dsv_handle;
 	m_cmd_list->OMSetRenderTargets(m_rtv_count, &rt_handle, TRUE, m_ds_enabled ? &ds_handle : nullptr);
+	
 
 	if(m_viewports_count>0)
 	{

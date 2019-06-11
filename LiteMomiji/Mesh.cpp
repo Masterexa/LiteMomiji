@@ -43,7 +43,7 @@ HRESULT Mesh::init(Graphics* graphics, MeshInitDesc* p_desc)
 		D3D12_HEAP_DESC	desc={};
 		desc.SizeInBytes	= heap_size;
 		desc.Alignment		= 0;
-		desc.Flags			= D3D12_HEAP_FLAG_NONE;
+		desc.Flags			= D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS;
 
 		auto& prop = desc.Properties;
 		prop.Type					= D3D12_HEAP_TYPE_DEFAULT;

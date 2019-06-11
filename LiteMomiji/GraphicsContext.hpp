@@ -26,6 +26,8 @@ struct GraphicsContext{
 
 			std::vector<D3D12_VERTEX_BUFFER_VIEW>	m_vb_views;
 
+			RenderTarget*				m_render_target;
+			uint32_t					m_prev_rt_index;
 			D3D12_CPU_DESCRIPTOR_HANDLE	m_rtv_handle;
 			D3D12_CPU_DESCRIPTOR_HANDLE	m_dsv_handle;
 			D3D12_RESOURCE_BARRIER		m_rtv_barriers[8];
@@ -46,6 +48,7 @@ struct GraphicsContext{
 
 		/* Methods */
 			uint32_t calculateDescriptorHeapCapacity(uint32_t srv_each_draw, uint32_t samplers_each_draw);
+			void setRenderTarget(RenderTarget* target);
 			void setRenderTarget(ID3D12Resource** rt_res, uint32_t rtv_cnt, D3D12_CPU_DESCRIPTOR_HANDLE rtv, D3D12_CPU_DESCRIPTOR_HANDLE dsv);
 
 			void begin();

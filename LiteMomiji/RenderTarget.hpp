@@ -21,7 +21,7 @@ struct RenderTarget{
 	/* Instance */
 		/* Fields */
 			bool	m_initialized;
-			uint32_t	m_buffer_index;
+			uint32_t	m_buffer_current_index;
 			uint32_t	m_target_count;
 			uint32_t	m_backbuffer_count;
 			Microsoft::WRL::ComPtr<ID3D12DescriptorHeap>	m_rtv_heap;

@@ -130,7 +130,7 @@ int TestEngine::run(int argc, char** argv)
 	m_cam_fov	= 60.f;
 	m_ao		= 1.0f;
 
-	m_shadowmap_resolution = XMINT2(256, 256);
+	m_shadowmap_resolution = XMINT2(1024, 1024);
 	ZeroMemory(&m_light_rot, sizeof(m_light_rot));
 
 
@@ -249,7 +249,10 @@ void TestEngine::initGraphics()
 	auto device		= m_gfx->m_device.Get();
 	auto factory	= m_gfx->m_dxgi_factory.Get();
 
+
 	// Create Swapchain
+	std::vector<ID3D12Resource*> rtr;
+	ComPtr<ID3D12Resource>	dsb;
 	{
 		DXGI_SWAP_CHAIN_DESC	desc;
 		ZeroMemory(&desc, sizeof(desc));
@@ -276,34 +279,13 @@ void TestEngine::initGraphics()
 		m_frame_index =  m_swapchain->GetCurrentBackBufferIndex();
 
 
-		{
-			D3D12_DESCRIPTOR_HEAP_DESC hdesc;
-			ZeroMemory(&hdesc, sizeof(hdesc));
-			hdesc.NumDescriptors	= 4;
-			hdesc.Type				= D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-			hdesc.Flags				= D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+		rtr.reserve(2);
+		rtr.resize(rtr.capacity());
 
-			// Create RTV
-			hr = device->CreateDescriptorHeap(&hdesc, IID_PPV_ARGS(m_swapchain_rtv_heap.GetAddressOf()));
-			THROW_IF_HFAILED(hr, "RTV heap creation fail.")
-		}
-
-		m_swapchain_buffers.reserve(2);
 		for(size_t i=0; i<2; i++)
 		{
-			m_swapchain_buffers.emplace_back();
-			m_swapchain->GetBuffer(i, IID_PPV_ARGS(m_swapchain_buffers.back().GetAddressOf()));
+			m_swapchain->GetBuffer(i, IID_PPV_ARGS(&rtr[i]));
 			THROW_IF_HFAILED(hr, "GetBuffer() Fail.")
-
-			auto handle = m_swapchain_rtv_heap->GetCPUDescriptorHandleForHeapStart();
-			handle.ptr += i*m_gfx->m_RTV_INC;
-
-			D3D12_RENDER_TARGET_VIEW_DESC rdesc;
-			rdesc.Format				= DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
-			rdesc.ViewDimension			= D3D12_RTV_DIMENSION_TEXTURE2D;
-			rdesc.Texture2D.MipSlice	= 0;
-			rdesc.Texture2D.PlaneSlice	= 0;
-			device->CreateRenderTargetView(m_swapchain_buffers.back().Get(), &rdesc, handle);
 		}
 	}
 
@@ -342,35 +324,44 @@ void TestEngine::initGraphics()
 			&desc,
 			D3D12_RESOURCE_STATE_DEPTH_WRITE,
 			&cval,
-			IID_PPV_ARGS(m_depthstencil_buffer.GetAddressOf())
+			IID_PPV_ARGS(dsb.GetAddressOf())
 		);
 		THROW_IF_HFAILED(hr, "DS buffer creation fail.")
-
-
-
-		{
-			D3D12_DESCRIPTOR_HEAP_DESC hdesc;
-			ZeroMemory(&hdesc, sizeof(hdesc));
-			hdesc.NumDescriptors	= 1;
-			hdesc.Type				= D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
-			hdesc.Flags				= D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-
-			// Create RTV
-			hr = device->CreateDescriptorHeap(&hdesc, IID_PPV_ARGS(m_swapchain_dsv_heap.GetAddressOf()));
-			THROW_IF_HFAILED(hr, "RTV heap creation fail.")
-
-
-			D3D12_DEPTH_STENCIL_VIEW_DESC dsd;
-			ZeroMemory(&dsd, sizeof(dsd));
-			dsd.Format			= DXGI_FORMAT_D24_UNORM_S8_UINT;
-			dsd.ViewDimension	= D3D12_DSV_DIMENSION_TEXTURE2D;
-			dsd.Flags			= D3D12_DSV_FLAG_NONE;
-			device->CreateDepthStencilView(m_depthstencil_buffer.Get(), &dsd, m_swapchain_dsv_heap->GetCPUDescriptorHandleForHeapStart());
-		}
 	}
 
 	m_vertex_views.reserve(8);
 	m_vertex_views.resize(2);
+
+
+	{
+		D3D12_RENDER_TARGET_VIEW_DESC rdesc;
+		rdesc.Format				= DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+		rdesc.ViewDimension			= D3D12_RTV_DIMENSION_TEXTURE2D;
+		rdesc.Texture2D.MipSlice	= 0;
+		rdesc.Texture2D.PlaneSlice	= 0;
+
+		RenderTargetDesc desc={};
+		desc.target_count					= 1;
+		desc.backbuffer_count				= 2;
+		desc.targets_each_backbuffer_ptr	= rtr.data();
+		desc.rendertarget_view_descs		= &rdesc;
+		desc.depthstencil_buffer_ptr		= dsb.Get();
+		
+		auto& dsd = desc.depthstencil_view_desc;
+		ZeroMemory(&dsd, sizeof(dsd));
+		dsd.Format			= DXGI_FORMAT_D24_UNORM_S8_UINT;
+		dsd.ViewDimension	= D3D12_DSV_DIMENSION_TEXTURE2D;
+		dsd.Flags			= D3D12_DSV_FLAG_NONE;
+
+		m_window_rtv.reset(new RenderTarget());
+		m_window_rtv->init(m_gfx.get(), &desc);
+
+
+		for(auto& it : rtr)
+		{
+			it->Release();
+		}
+	}
 }
 
 void TestEngine::initResources()
@@ -557,6 +548,8 @@ void TestEngine::initResources()
 
 	// Create Shadow texture
 	{
+		ComPtr<ID3D12Resource>	sm;
+
 		D3D12_HEAP_PROPERTIES prop={};
 		prop.Type					= D3D12_HEAP_TYPE_DEFAULT;
 		prop.CPUPageProperty		= D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
@@ -589,30 +582,29 @@ void TestEngine::initResources()
 			&desc,
 			D3D12_RESOURCE_STATE_DEPTH_WRITE,
 			&cval,
-			IID_PPV_ARGS(m_shadowmap.GetAddressOf())
+			IID_PPV_ARGS(sm.GetAddressOf())
 		);
 		THROW_IF_HFAILED(hr, "Shadow buffer creation fail.")
 
 		m_shadowmap_fmt = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
 
+
 		{
-			D3D12_DESCRIPTOR_HEAP_DESC hdesc;
-			ZeroMemory(&hdesc, sizeof(hdesc));
-			hdesc.NumDescriptors	= 1;
-			hdesc.Type				= D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
-			hdesc.Flags				= D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-
-			// Create RTV
-			hr = device->CreateDescriptorHeap(&hdesc, IID_PPV_ARGS(m_shadow_dsv_heap.GetAddressOf()));
-			THROW_IF_HFAILED(hr, "DSV heap creation fail.")
-
-
-			D3D12_DEPTH_STENCIL_VIEW_DESC dsd;
+			RenderTargetDesc rt_desc={};
+			rt_desc.backbuffer_count			= 1;
+			rt_desc.target_count				= 0;
+			rt_desc.targets_each_backbuffer_ptr	= nullptr;
+			rt_desc.rendertarget_view_descs		= nullptr;
+			rt_desc.depthstencil_buffer_ptr		= sm.Get();
+			
+			auto& dsd = rt_desc.depthstencil_view_desc;
 			ZeroMemory(&dsd, sizeof(dsd));
 			dsd.Format			= DXGI_FORMAT_D24_UNORM_S8_UINT;
 			dsd.ViewDimension	= D3D12_DSV_DIMENSION_TEXTURE2D;
 			dsd.Flags			= D3D12_DSV_FLAG_NONE;
-			device->CreateDepthStencilView(m_depthstencil_buffer.Get(), &dsd, m_shadow_dsv_heap->GetCPUDescriptorHandleForHeapStart());
+
+			m_shadowmap.reset(new RenderTarget());
+			m_shadowmap->init(m_gfx.get(), &rt_desc);
 		}
 	}
 
@@ -693,7 +685,7 @@ void TestEngine::initResources()
 		sampler[1].AddressU			= sampler[1].AddressV = sampler[1].AddressW = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
 		sampler[1].MipLODBias		= 0;
 		sampler[1].MaxAnisotropy	= 1;
-		sampler[1].ComparisonFunc	= D3D12_COMPARISON_FUNC_LESS;
+		sampler[1].ComparisonFunc	= D3D12_COMPARISON_FUNC_LESS_EQUAL;
 		sampler[1].BorderColor		= D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
 		sampler[1].MinLOD			= 0.0f;
 		sampler[1].MaxLOD			= D3D12_FLOAT32_MAX;
@@ -847,7 +839,7 @@ void TestEngine::initResources()
 		desc.TextureCube.MipLevels			= 1;
 		desc.TextureCube.MostDetailedMip	= 0;
 		// Create the SRV
-		m_gfx->m_device->CreateShaderResourceView(m_shadowmap.Get(), &desc, handle);
+		m_gfx->m_device->CreateShaderResourceView(m_shadowmap->m_ds_buffer.Get(), &desc, handle);
 	}
 }
 
@@ -856,7 +848,7 @@ void TestEngine::shutdown()
 	m_instacing_buffer->Unmap(0, nullptr);
 	m_imgui->shutdown();
 
-	m_swapchain_buffers.clear();
+	m_window_rtv.reset();
 	m_swapchain.Reset();
 }
 
@@ -932,13 +924,10 @@ void TestEngine::update()
 void TestEngine::setRTVCurrent()
 {
 	m_frame_index = m_swapchain->GetCurrentBackBufferIndex();
-
-	auto handle_rt = m_swapchain_rtv_heap->GetCPUDescriptorHandleForHeapStart();
-	handle_rt.ptr += m_frame_index*m_gfx->m_RTV_INC;
-
-
-	m_gfx_context->setRenderTarget(m_swapchain_buffers[m_frame_index].GetAddressOf(), 1, handle_rt, m_swapchain_dsv_heap->GetCPUDescriptorHandleForHeapStart());
-
+	
+	m_window_rtv->setBufferIndex(m_frame_index);
+	m_gfx_context->setRenderTarget(m_window_rtv.get());
+	
 
 	D3D12_VIEWPORT vp;
 	vp.Width	= m_config.width;
@@ -1068,18 +1057,17 @@ void TestEngine::render()
 	// Shadow maps
 	{
 		auto rot	= XMQuaternionRotationRollPitchYawFromVector(XMLoadFloat3(&m_light_rot));
-		auto view	= XMMatrixLookToLH(XMVectorSet(0,50.0f,0,1), VECTOR_DOWN, VECTOR_FORWARD);
-		auto proj	= XMMatrixOrthographicLH(100,100, 0.1, 100);
+		auto view	= XMMatrixLookToLH(XMVectorSet(0,25.0f,0,1), VECTOR_DOWN, VECTOR_FORWARD);
+		auto proj	= XMMatrixOrthographicLH(50,50, 0.1,50);
 
 		XMStoreFloat4x4(&su.view, view);
 		XMStoreFloat4x4(&su.projection, proj);
 		XMStoreFloat4x4(&su.shadow_mat, XMMatrixMultiply(view,proj));
+
+		XMStoreFloat3(&su.lightdir, VECTOR_UP);
 	}
 	if(true){
-		D3D12_CPU_DESCRIPTOR_HANDLE handle_rt;
-		handle_rt.ptr = 0;
-
-		m_gfx_context->setRenderTarget(m_shadowmap.GetAddressOf(), 0, handle_rt, m_shadow_dsv_heap->GetCPUDescriptorHandleForHeapStart());
+		m_gfx_context->setRenderTarget(m_shadowmap.get());
 
 		D3D12_VIEWPORT vp;
 		vp.Width	= (float)m_shadowmap_resolution.x;
@@ -1106,7 +1094,6 @@ void TestEngine::render()
 
 		// set shader uniforms
 		cmd_list->SetGraphicsRoot32BitConstants(0, sizeof(ShaderUniforms)/4, &su, 0);
-		//cmd_list->SetGraphicsRootDescriptorTable(1, m_gfx_context->m_srv_heap->GetGPUDescriptorHandleForHeapStart());
 
 		m_gfx_context->clearDepthStencil(D3D12_CLEAR_FLAG_DEPTH|D3D12_CLEAR_FLAG_STENCIL, 1.f, 0, 0, nullptr);
 		drawObjects(cmd_list);

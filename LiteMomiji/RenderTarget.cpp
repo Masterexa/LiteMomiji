@@ -31,7 +31,7 @@ void RenderTarget::init(Graphics* graph, RenderTargetDesc* desc)
 	{
 		D3D12_DESCRIPTOR_HEAP_DESC hdesc={};
 		hdesc.Type				= D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-		hdesc.Flags				= D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+		hdesc.Flags				= D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 		hdesc.NumDescriptors	= m_backbuffer_count * m_target_count;
 
 		// Create RTV heap
@@ -101,7 +101,7 @@ void RenderTarget::shutdown()
 
 void RenderTarget::setBufferIndex(uint32_t index)
 {
-	m_buffer_index = index;
+	m_buffer_current_index = index;
 }
 
 D3D12_CPU_DESCRIPTOR_HANDLE RenderTarget::getCurrentRTV() const
@@ -113,7 +113,7 @@ D3D12_CPU_DESCRIPTOR_HANDLE RenderTarget::getCurrentRTV() const
 	}
 
 	h = m_rtv_heap->GetCPUDescriptorHandleForHeapStart();
-	h.ptr += m_graph->m_RTV_INC*m_buffer_index;
+	h.ptr += m_graph->m_RTV_INC*m_buffer_current_index;
 	return h;
 }
 

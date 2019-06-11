@@ -6,6 +6,7 @@
 #include "GraphicsContext.hpp"
 #include "PipelineState.hpp"
 #include "Mesh.hpp"
+#include "RenderTarget.hpp"
 #include "ImguiModule.hpp"
 #include "DebugDrawer.hpp"
 #include "Input.hpp"
@@ -43,12 +44,10 @@ class TestEngine{
 			// Swapchian
 			HINSTANCE	m_instance;
 			HWND		m_hwnd;
-			Microsoft::WRL::ComPtr<IDXGISwapChain3>				m_swapchain;
-			Microsoft::WRL::ComPtr<ID3D12Resource>				m_depthstencil_buffer;
-			Microsoft::WRL::ComPtr<ID3D12DescriptorHeap>		m_swapchain_rtv_heap;
-			Microsoft::WRL::ComPtr<ID3D12DescriptorHeap>		m_swapchain_dsv_heap;
-			std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>>	m_swapchain_buffers;
-			UINT m_frame_index;
+			Microsoft::WRL::ComPtr<IDXGISwapChain3>		m_swapchain;
+			UINT							m_frame_index;
+			std::unique_ptr<RenderTarget>	m_window_rtv;
+
 
 			// Mesh State
 			Microsoft::WRL::ComPtr<ID3D12Resource>	m_instacing_buffer;
@@ -80,10 +79,9 @@ class TestEngine{
 			std::unique_ptr<Mesh>			m_mesh_skysphere;
 
 			// Shadow map
-			Microsoft::WRL::ComPtr<ID3D12Resource>			m_shadowmap;
-			Microsoft::WRL::ComPtr<ID3D12DescriptorHeap>	m_shadow_dsv_heap;
-			DXGI_FORMAT		m_shadowmap_fmt;
-			DirectX::XMINT2	m_shadowmap_resolution;
+			std::unique_ptr<RenderTarget>	m_shadowmap;
+			DXGI_FORMAT						m_shadowmap_fmt;
+			DirectX::XMINT2					m_shadowmap_resolution;
 
 
 			// Misc modules
