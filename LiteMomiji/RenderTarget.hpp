@@ -20,7 +20,7 @@ struct RenderTarget{
 
 	/* Instance */
 		/* Fields */
-			bool	m_initialized;
+			bool		m_initialized;
 			uint32_t	m_buffer_current_index;
 			uint32_t	m_target_count;
 			uint32_t	m_backbuffer_count;
@@ -37,7 +37,7 @@ struct RenderTarget{
 
 			void init(Graphics* graph, RenderTargetDesc* desc);
 			void shutdown();
-			void setBufferIndex(uint32_t index);
+			void setBackBufferIndex(uint32_t index);
 			
 			D3D12_CPU_DESCRIPTOR_HANDLE getCurrentRTV() const;
 			D3D12_CPU_DESCRIPTOR_HANDLE getDSV() const;

@@ -157,5 +157,7 @@ void Swapchain::shutdown()
 void Swapchain::present()
 {
 	m_swapchain->Present(1, 0);
+
 	m_frame_index = m_swapchain->GetCurrentBackBufferIndex();
+	m_window_rtv->setBackBufferIndex(m_frame_index);
 }

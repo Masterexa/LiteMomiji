@@ -10,6 +10,7 @@
 #include "ImguiModule.hpp"
 #include "DebugDrawer.hpp"
 #include "Input.hpp"
+#include "Swapchain.hpp"
 
 #include <vector>
 #include <chrono>
@@ -44,9 +45,7 @@ class TestEngine{
 			// Swapchian
 			HINSTANCE	m_instance;
 			HWND		m_hwnd;
-			Microsoft::WRL::ComPtr<IDXGISwapChain3>		m_swapchain;
-			UINT							m_frame_index;
-			std::unique_ptr<RenderTarget>	m_window_rtv;
+			std::unique_ptr<Swapchain>	m_swapchain;
 
 
 			// Mesh State

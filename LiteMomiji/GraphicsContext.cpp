@@ -19,6 +19,8 @@ GraphicsContext::GraphicsContext() :
 	m_dsv_handle.ptr = 0;
 
 	m_render_target = nullptr;
+	m_rt_writing = false;
+	m_back_alloc = false;
 }
 
 void GraphicsContext::init(Graphics* graph)
@@ -29,6 +31,10 @@ void GraphicsContext::init(Graphics* graph)
 
 	// Command Allocator
 	hr = device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(m_cmd_alloc.GetAddressOf()));
+	THROW_IF_HFAILED(hr, "CreateCommandAllocator() Fail.")
+
+	// Command Allocator
+	hr = device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(m_cmd_alloc2.GetAddressOf()));
 	THROW_IF_HFAILED(hr, "CreateCommandAllocator() Fail.")
 
 	// Command List
@@ -71,7 +77,6 @@ void GraphicsContext::setRenderTarget(RenderTarget* target)
 	m_prev_rt_index		= UINT32_MAX;
 }
 
-
 void GraphicsContext::begin()
 {
 	if(m_recoding)
@@ -96,10 +101,12 @@ void GraphicsContext::begin()
 		m_prev_rt_index = m_render_target->m_buffer_current_index;
 	}
 
-	m_cmd_alloc->Reset();
-	m_cmd_list->Reset(m_cmd_alloc.Get(), nullptr);
+	(m_back_alloc ? m_cmd_alloc2 : m_cmd_alloc)->Reset();
+	
+	
+	m_cmd_list->Reset(m_back_alloc ? m_cmd_alloc2.Get() : m_cmd_alloc.Get(), nullptr);
 
-	if(m_rtv_count>0)
+	if(m_rtv_count>0 && !m_rt_writing)
 	{
 		for(size_t i = 0; i <m_rtv_count; i++)
 		{
@@ -110,6 +117,7 @@ void GraphicsContext::begin()
 			m_rtv_barriers[i].Transition.Subresource	= D3D12_RESOURCE_BARRIER_FLAG_NONE;
 		}
 		m_cmd_list->ResourceBarrier(m_rtv_count, m_rtv_barriers);
+		m_rt_writing = true;
 	}
 	auto rt_handle = m_rtv_handle;
 	auto ds_handle = m_dsv_handle;
@@ -128,9 +136,9 @@ void GraphicsContext::begin()
 	m_recoding = true;
 }
 
-void GraphicsContext::end()
+void GraphicsContext::end(bool release_rt)
 {
-	if(m_rtv_count>0)
+	if(m_rtv_count>0 && m_rt_writing && release_rt)
 	{
 		for(size_t i = 0; i <m_rtv_count; i++)
 		{
@@ -141,6 +149,7 @@ void GraphicsContext::end()
 			m_rtv_barriers[i].Transition.Subresource	= D3D12_RESOURCE_BARRIER_FLAG_NONE;
 		}
 		m_cmd_list->ResourceBarrier(m_rtv_count, m_rtv_barriers);
+		m_rt_writing = false;
 	}
 
 	m_cmd_list->Close();

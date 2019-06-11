@@ -21,7 +21,9 @@ struct GraphicsContext{
 			Graphics*	m_graphics;
 
 			bool	m_recoding;
+			bool	m_back_alloc;
 			Microsoft::WRL::ComPtr<ID3D12CommandAllocator>		m_cmd_alloc;
+			Microsoft::WRL::ComPtr<ID3D12CommandAllocator>		m_cmd_alloc2;
 			Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList>	m_cmd_list;
 
 			std::vector<D3D12_VERTEX_BUFFER_VIEW>	m_vb_views;
@@ -33,6 +35,7 @@ struct GraphicsContext{
 			D3D12_RESOURCE_BARRIER		m_rtv_barriers[8];
 			size_t						m_rtv_count;
 			bool						m_ds_enabled;
+			bool						m_rt_writing;
 
 			D3D12_VIEWPORT	m_viewports[D3D12_VIEWPORT_AND_SCISSORRECT_MAX_INDEX];
 			size_t			m_viewports_count;
@@ -52,7 +55,7 @@ struct GraphicsContext{
 			void setRenderTarget(ID3D12Resource** rt_res, uint32_t rtv_cnt, D3D12_CPU_DESCRIPTOR_HANDLE rtv, D3D12_CPU_DESCRIPTOR_HANDLE dsv);
 
 			void begin();
-			void end();
+			void end(bool);
 
 			void setPipelineState(PipelineState* pso);
 

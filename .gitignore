@@ -15,7 +15,6 @@
 [Dd]ebugPublic/
 [Rr]elease/
 [Rr]eleases/
-[Gg]ame[Rr]esources/
 x64/
 x86/
 bld/
@@ -260,3 +259,7 @@ paket-files/
 # Python Tools for Visual Studio (PTVS)
 __pycache__/
 *.pyc
+
+
+# Precompiled Shaders
+*.cso

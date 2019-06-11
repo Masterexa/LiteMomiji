@@ -106,9 +106,6 @@ LRESULT TestEngine::wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 
 
 
-
-
-
 int TestEngine::run(int argc, char** argv)
 {
 	setlocale(LC_ALL, "ja_jp");
@@ -250,118 +247,35 @@ void TestEngine::initGraphics()
 	auto factory	= m_gfx->m_dxgi_factory.Get();
 
 
+	{
+	}
+
+
 	// Create Swapchain
-	std::vector<ID3D12Resource*> rtr;
-	ComPtr<ID3D12Resource>	dsb;
 	{
-		DXGI_SWAP_CHAIN_DESC	desc;
-		ZeroMemory(&desc, sizeof(desc));
-		desc.BufferCount		= 2;
-		desc.BufferDesc.Width	= m_config.width;
-		desc.BufferDesc.Height	= m_config.height;
-		desc.BufferDesc.Format	= DXGI_FORMAT_R8G8B8A8_UNORM;
-		desc.BufferUsage		= DXGI_USAGE_RENDER_TARGET_OUTPUT|DXGI_USAGE_SHADER_INPUT;
-		desc.SwapEffect			= DXGI_SWAP_EFFECT_FLIP_DISCARD;
-		desc.OutputWindow		= m_hwnd;
-		desc.SampleDesc.Count	= 1;
-		desc.Windowed			= TRUE;
-		desc.BufferDesc.RefreshRate.Numerator	= 60;
-		desc.BufferDesc.RefreshRate.Denominator	= 1;
+		SwapchainDesc desc={};
+		desc.create_with_depthstencil	= true;
+		desc.use_srgb					= true;
 
-		ComPtr<IDXGISwapChain>	sc;
-		hr = factory->CreateSwapChain(m_gfx->m_cmd_queue.Get(), &desc, sc.GetAddressOf());
-		THROW_IF_HFAILED(hr, "CreateSwapChain() Fail.")
+		auto& sw_desc = desc.dxgi_swapchain_desc;
+		ZeroMemory(&sw_desc, sizeof(sw_desc));
+		sw_desc.BufferCount			= 2;
+		sw_desc.BufferDesc.Width	= m_config.width;
+		sw_desc.BufferDesc.Height	= m_config.height;
+		sw_desc.BufferDesc.Format	= DXGI_FORMAT_R8G8B8A8_UNORM;
+		sw_desc.BufferUsage			= DXGI_USAGE_RENDER_TARGET_OUTPUT;
+		sw_desc.SwapEffect			= DXGI_SWAP_EFFECT_FLIP_DISCARD;
+		sw_desc.OutputWindow		= m_hwnd;
+		sw_desc.SampleDesc.Count	= 1;
+		sw_desc.Windowed			= TRUE;
+		sw_desc.BufferDesc.RefreshRate.Numerator	= 0;
+		sw_desc.BufferDesc.RefreshRate.Denominator	= 1;
 
-		// cast to 3
-		hr = sc->QueryInterface(m_swapchain.GetAddressOf());
-		THROW_IF_HFAILED(hr, "QueryInterface() Fail.")
-
-		m_frame_index =  m_swapchain->GetCurrentBackBufferIndex();
-
-
-		rtr.reserve(2);
-		rtr.resize(rtr.capacity());
-
-		for(size_t i=0; i<2; i++)
-		{
-			m_swapchain->GetBuffer(i, IID_PPV_ARGS(&rtr[i]));
-			THROW_IF_HFAILED(hr, "GetBuffer() Fail.")
-		}
+		m_swapchain.reset(new Swapchain());
+		m_swapchain->init(m_gfx.get(), &desc);
 	}
-
-	
-	// Create DS Buffer
-	{
-		D3D12_HEAP_PROPERTIES prop={};
-		prop.Type					= D3D12_HEAP_TYPE_DEFAULT;
-		prop.CPUPageProperty		= D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
-		prop.MemoryPoolPreference	= D3D12_MEMORY_POOL_UNKNOWN;
-		prop.CreationNodeMask		= 1;
-		prop.VisibleNodeMask		= 1;
-
-		D3D12_RESOURCE_DESC desc ={};
-		desc.Dimension			= D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-		desc.Alignment			= 0;
-		desc.Width				= m_config.width;
-		desc.Height				= m_config.height;
-		desc.DepthOrArraySize	= 1;
-		desc.MipLevels			= 0;
-		desc.Format				= DXGI_FORMAT_D24_UNORM_S8_UINT;
-		desc.SampleDesc.Count	= 1;
-		desc.SampleDesc.Quality	= 0;
-		desc.Flags				= D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
-		desc.Layout				= D3D12_TEXTURE_LAYOUT_UNKNOWN;
-
-		D3D12_CLEAR_VALUE cval ={};
-		cval.Format					= DXGI_FORMAT_D24_UNORM_S8_UINT;
-		cval.DepthStencil.Depth		= 1.f;
-		cval.DepthStencil.Stencil	= 0;
-
-		// create buffer
-		hr = device->CreateCommittedResource(
-			&prop,
-			D3D12_HEAP_FLAG_NONE,
-			&desc,
-			D3D12_RESOURCE_STATE_DEPTH_WRITE,
-			&cval,
-			IID_PPV_ARGS(dsb.GetAddressOf())
-		);
-		THROW_IF_HFAILED(hr, "DS buffer creation fail.")
-	}
-
 	m_vertex_views.reserve(8);
 	m_vertex_views.resize(2);
-
-
-	{
-		D3D12_RENDER_TARGET_VIEW_DESC rdesc;
-		rdesc.Format				= DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
-		rdesc.ViewDimension			= D3D12_RTV_DIMENSION_TEXTURE2D;
-		rdesc.Texture2D.MipSlice	= 0;
-		rdesc.Texture2D.PlaneSlice	= 0;
-
-		RenderTargetDesc desc={};
-		desc.target_count					= 1;
-		desc.backbuffer_count				= 2;
-		desc.targets_each_backbuffer_ptr	= rtr.data();
-		desc.rendertarget_view_descs		= &rdesc;
-		desc.depthstencil_buffer_ptr		= dsb.Get();
-		
-		auto& dsd = desc.depthstencil_view_desc;
-		ZeroMemory(&dsd, sizeof(dsd));
-		dsd.Format			= DXGI_FORMAT_D24_UNORM_S8_UINT;
-		dsd.ViewDimension	= D3D12_DSV_DIMENSION_TEXTURE2D;
-		dsd.Flags			= D3D12_DSV_FLAG_NONE;
-
-		m_window_rtv.reset(new RenderTarget());
-		m_window_rtv->init(m_gfx.get(), &desc);
-
-
-		for(auto& it : rtr)
-		{
-			it->Release();
-		}
-	}
 }
 
 void TestEngine::initResources()
@@ -845,11 +759,13 @@ void TestEngine::initResources()
 
 void TestEngine::shutdown()
 {
+	m_gfx->waitForDone();
+
 	m_instacing_buffer->Unmap(0, nullptr);
 	m_imgui->shutdown();
 
-	m_window_rtv.reset();
-	m_swapchain.Reset();
+	m_gfx_context->setRenderTarget(nullptr);
+	m_swapchain.reset();
 }
 
 void TestEngine::update()
@@ -878,6 +794,7 @@ void TestEngine::update()
 	
 
 	// debug window
+	
 	m_imgui->newFrame();
 	{
 		if( m_demo_window )
@@ -908,11 +825,13 @@ void TestEngine::update()
 			{0,0,-5},
 			{0,0,5},
 		};
-
+		/*
 		m_debug_drawer->drawLines(&lp[0], 2, XMColorRGBToSRGB(Colors::Red), XMColorRGBToSRGB(Colors::Red));
 		m_debug_drawer->drawLines(&lp[2], 2, XMColorRGBToSRGB(Colors::Green), XMColorRGBToSRGB(Colors::Green));
 		m_debug_drawer->drawLines(&lp[4], 2, XMColorRGBToSRGB(Colors::Blue), XMColorRGBToSRGB(Colors::Blue));
 		m_debug_drawer->drawWireCube(XMVectorNegate(g_XMOne), g_XMTwo, g_XMZero, XMColorRGBToSRGB(Colors::Gray));
+		*/
+		
 		/*
 		m_debug_drawer->drawTexture(
 			m_shadowmap.Get(), m_shadowmap_fmt,
@@ -923,11 +842,7 @@ void TestEngine::update()
 
 void TestEngine::setRTVCurrent()
 {
-	m_frame_index = m_swapchain->GetCurrentBackBufferIndex();
-	
-	m_window_rtv->setBufferIndex(m_frame_index);
-	m_gfx_context->setRenderTarget(m_window_rtv.get());
-	
+	m_gfx_context->setRenderTarget( m_swapchain->m_window_rtv.get() );
 
 	D3D12_VIEWPORT vp;
 	vp.Width	= m_config.width;
@@ -1053,7 +968,7 @@ void TestEngine::render()
 	ID3D12CommandList* cmd_lists[] ={cmd_list};
 
 
-
+	
 	// Shadow maps
 	{
 		auto rot	= XMQuaternionRotationRollPitchYawFromVector(XMLoadFloat3(&m_light_rot));
@@ -1063,8 +978,6 @@ void TestEngine::render()
 		XMStoreFloat4x4(&su.view, view);
 		XMStoreFloat4x4(&su.projection, proj);
 		XMStoreFloat4x4(&su.shadow_mat, XMMatrixMultiply(view,proj));
-
-		XMStoreFloat3(&su.lightdir, VECTOR_UP);
 	}
 	if(true){
 		m_gfx_context->setRenderTarget(m_shadowmap.get());
@@ -1083,9 +996,6 @@ void TestEngine::render()
 		sr.bottom	= m_shadowmap_resolution.y;
 		m_gfx_context->setScissorRects(1, &sr);
 	}
-	else{
-		setRTVCurrent();
-	}
 	m_gfx_context->begin();
 	do{
 		// set pso
@@ -1099,15 +1009,15 @@ void TestEngine::render()
 		drawObjects(cmd_list);
 	}
 	while(false);
-	m_gfx_context->end();
+	m_gfx_context->end(true);
 	cmd_queue->ExecuteCommandLists(1, cmd_lists);
 	m_gfx->waitForDone();
-
+	
 	
 	
 	setRTVCurrent();
 
-
+	
 	// Draw Skybox
 	{
 		auto rot		= XMQuaternionRotationRollPitchYawFromVector(XMLoadFloat3(&m_cam_rot));
@@ -1125,6 +1035,7 @@ void TestEngine::render()
 		XMStoreFloat4x4(&su.view, XMMatrixLookToLH(g_XMZero, look_fwd, look_up));
 		XMStoreFloat4x4(&su.projection, proj);
 	}
+	
 	m_gfx_context->begin();
 	{
 		// set pso
@@ -1148,9 +1059,10 @@ void TestEngine::render()
 			cmd_list->DrawIndexedInstanced(p_mesh->m_submesh_pairs[0].count, 1, p_mesh->m_submesh_pairs[0].offset, 0, 0);
 		}
 	}
-	m_gfx_context->end();
+	m_gfx_context->end(false);
 	cmd_queue->ExecuteCommandLists(1, cmd_lists);
-	m_gfx->waitForDone();
+	
+	//m_gfx->waitForDone();
 
 
 	// Foward Objects
@@ -1158,7 +1070,7 @@ void TestEngine::render()
 		su.view = camera_view_mat;
 	}
 	m_gfx_context->begin();
-	do{
+	{
 		// set pso
 		m_gfx_context->setPipelineState(m_forward_pso.get());
 		cmd_list->SetDescriptorHeaps(1, m_gfx_context->m_srv_heap.GetAddressOf());
@@ -1168,25 +1080,28 @@ void TestEngine::render()
 		cmd_list->SetGraphicsRootDescriptorTable(1, m_gfx_context->m_srv_heap->GetGPUDescriptorHandleForHeapStart());
 
 		drawObjects(cmd_list);
-	} while(false);
-	m_gfx_context->end();
+	}
+	m_gfx_context->end(false);
 	cmd_queue->ExecuteCommandLists(1, cmd_lists);
 	m_gfx->waitForDone();
 	
 	
 	// Render DebugDrawer
-	m_debug_drawer->render(m_gfx.get(), m_gfx_context.get());
+	//m_debug_drawer->render(m_gfx.get(), m_gfx_context.get());
 	m_debug_drawer->flush();
 	
 	// render imgui
+	
 	m_gfx_context->begin();
 	{
 		m_imgui->render(m_gfx_context.get());
 	}
-	m_gfx_context->end();
+	m_gfx_context->end(true);
+	
+
 	cmd_queue->ExecuteCommandLists(1, cmd_lists);
 	m_gfx->waitForDone();
 
 
-	m_swapchain->Present(1, 0);
+	m_swapchain->present();
 }

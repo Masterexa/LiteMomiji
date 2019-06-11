@@ -6,7 +6,8 @@
 
 RenderTarget::RenderTarget()
 {
-	m_initialized = false;
+	m_initialized			= false;
+	m_buffer_current_index	= 0;
 }
 
 RenderTarget::~RenderTarget()
@@ -99,7 +100,7 @@ void RenderTarget::shutdown()
 	m_initialized = false;
 }
 
-void RenderTarget::setBufferIndex(uint32_t index)
+void RenderTarget::setBackBufferIndex(uint32_t index)
 {
 	m_buffer_current_index = index;
 }

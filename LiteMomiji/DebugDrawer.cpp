@@ -358,7 +358,7 @@ void DebugDrawer::render(Graphics* graph, GraphicsContext* context)
 		cmd_list->IASetVertexBuffers(0, 1, m_line_view);
 		cmd_list->DrawInstanced(inst_cnt, 1, 0, 0);
 	}
-	context->end();
+	context->end(false);
 	cmd_queue->ExecuteCommandLists(1, cmd_lists);
 	graph->waitForDone();
 
@@ -418,7 +418,7 @@ void DebugDrawer::render(Graphics* graph, GraphicsContext* context)
 			tex_handle.ptr += graph->m_SRV_INC;
 		}
 	}
-	context->end();
+	context->end(false);
 	cmd_queue->ExecuteCommandLists(1, cmd_lists);
 	graph->waitForDone();
 }
