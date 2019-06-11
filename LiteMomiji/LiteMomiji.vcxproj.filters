@@ -84,6 +84,9 @@
     <ClInclude Include="RenderTarget.hpp">
       <Filter>Source Files</Filter>
     </ClInclude>
+    <ClInclude Include="Swapchain.hpp">
+      <Filter>Source Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Graphics.cpp">
@@ -135,6 +138,9 @@
       <Filter>Source Files\&lt;src&gt;</Filter>
     </ClCompile>
     <ClCompile Include="RenderTarget.cpp">
+      <Filter>Source Files\&lt;src&gt;</Filter>
+    </ClCompile>
+    <ClCompile Include="Swapchain.cpp">
       <Filter>Source Files\&lt;src&gt;</Filter>
     </ClCompile>
   </ItemGroup>

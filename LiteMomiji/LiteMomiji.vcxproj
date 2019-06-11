@@ -143,6 +143,7 @@
     <ClInclude Include="pre.hpp" />
     <ClInclude Include="RenderTarget.hpp" />
     <ClInclude Include="Shader.hpp" />
+    <ClInclude Include="Swapchain.hpp" />
     <ClInclude Include="TestEngine.hpp" />
   </ItemGroup>
   <ItemGroup>
@@ -162,6 +163,7 @@
     <ClCompile Include="ModelReader.cpp" />
     <ClCompile Include="PipelineState.cpp" />
     <ClCompile Include="RenderTarget.cpp" />
+    <ClCompile Include="Swapchain.cpp" />
     <ClCompile Include="TestEngine.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

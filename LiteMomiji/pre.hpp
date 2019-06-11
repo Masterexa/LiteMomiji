@@ -31,6 +31,7 @@ struct Mesh;
 struct Model;
 struct Material;
 struct RenderTarget;
+struct Swapchain;
 
 struct ImguiModule;
 struct DebugDrawer;
