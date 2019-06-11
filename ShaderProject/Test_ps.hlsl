@@ -148,13 +148,13 @@ PSOut main(VSOut psin)
 	bsdf.B = normalize(psin.binormal);
 	bsdf.T = normalize(psin.tangent);
 	bsdf.V = normalize(psin.view);
-	bsdf.L = normalize(TEST_LIGHT);
+	bsdf.L = normalize(g_lightdir);
 	bsdf.H = normalize(bsdf.L+bsdf.V);
 
 	bsdf.albedo		= psin.color.rgb;
-	bsdf.roughness	= psin.pbs_param.r;
+	bsdf.roughness	= 0.1;
 	bsdf.specular	= 1.0;
-    bsdf.metallic   = psin.pbs_param.g;
+    bsdf.metallic   = 0.0;
 	bsdf.anisotropic= 0.0;
 	bsdf.occlusion	= lerp(1.0, g_ao_tex.Sample(g_ao_samp, psin.uv0).g, g_ao);
 
@@ -162,10 +162,26 @@ PSOut main(VSOut psin)
     float3 ctint = lerp((bsdf.albedo / lum), float3(1, 1, 1), step(0, lum)); //step(a,b) : a less then b
     float3 spec0 = lerp(bsdf.specular * 0.08 * lerp(float3(1, 1, 1), ctint, bsdf.specular_tint), bsdf.albedo, bsdf.metallic);
 
+    float3 shadow_coord = psin.shadow.xyz / psin.shadow.w;
+    shadow_coord.xy    = shadow_coord.xy * 0.5 + 0.5;
+    //shadow_coord /= psin.shadow.w;
 
-    psout.color.rgb += environment(bsdf.N, bsdf.V, spec0, bsdf.metallic) + ambient(bsdf.N, bsdf.albedo*bsdf.occlusion, bsdf.metallic);
-	psout.color.rgb	+= physically(bsdf)*2.0;
+    /*
+    float max_depth_slope = max(abs(ddx(shadow_coord.z)), abs(ddy(shadow_coordz)));
+    float bias = 0.01;
+    float slope_scaled_bias = 0.01;
+    float depth_bias_clamp = 0.1;
+*/
+    //float shadow_bias = min(depth_bias_clamp, bias + slope_scaled_bias * max_depth_slope);
+    float shadow_threshold  = g_shadowmap_tex.SampleCmpLevelZero(g_shadow_samp, shadow_coord.xy, shadow_coord.z-0.001);
+    
+
+
+    //psout.color.rgb += environment(bsdf.N, bsdf.V, spec0, bsdf.metallic) + ambient(bsdf.N, bsdf.albedo*bsdf.occlusion, bsdf.metallic);
+	//psout.color.rgb	+= phong(bsdf)*2.0*shadow_threshold;
 	psout.color.a	= psin.color.a;
 
+    psout.color.rgb = float3(1, 1, 1) * shadow_threshold;
+    //psout.color.rgb = shadow_coord;
 	return psout;
 }

@@ -23,6 +23,7 @@ void PipelineState::init(Graphics* graph, D3D12_ROOT_SIGNATURE_DESC* rs_desc, D3
 			signature.GetAddressOf(),
 			error.GetAddressOf()
 		);
+		//auto e = (char*)error->GetBufferPointer();
 		THROW_IF_HFAILED(hr, "root signature serialization fail.")
 
 

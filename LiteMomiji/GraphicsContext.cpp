@@ -13,6 +13,9 @@ GraphicsContext::GraphicsContext() :
 	m_vb_views.reserve(8);
 	m_viewports_count		= 0;
 	m_scissor_rects_count	= 0;
+
+	m_rtv_handle.ptr = 0;
+	m_dsv_handle.ptr = 0;
 }
 
 void GraphicsContext::init(Graphics* graph)
@@ -34,82 +37,49 @@ void GraphicsContext::init(Graphics* graph)
 		D3D12_DESCRIPTOR_HEAP_DESC hdesc;
 		ZeroMemory(&hdesc, sizeof(hdesc));
 		hdesc.NumDescriptors	= 8;
-		hdesc.Type				= D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-		hdesc.Flags				= D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-
-		// Create RTV
-		hr = device->CreateDescriptorHeap(&hdesc, IID_PPV_ARGS(m_rtv_heap.GetAddressOf()));
-		THROW_IF_HFAILED(hr, "RTV heap creation fail.")
-
-		// Create DSV
-		hdesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
-		hr = device->CreateDescriptorHeap(&hdesc, IID_PPV_ARGS(m_dsv_heap.GetAddressOf()));
-		THROW_IF_HFAILED(hr, "RTV heap creation fail.")
-
-		for(auto& it : m_rtv_barriers)
-		{
-			ZeroMemory(&it, sizeof(it));
-			it.Type						= D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-			it.Flags					= D3D12_RESOURCE_BARRIER_FLAG_NONE;
-			it.Transition.StateBefore	= D3D12_RESOURCE_STATE_PRESENT;
-			it.Transition.StateAfter	= D3D12_RESOURCE_STATE_RENDER_TARGET;
-			it.Transition.Subresource	= D3D12_RESOURCE_BARRIER_FLAG_NONE;
-		}
-		m_rtv_count		= 0;
-		m_ds_enabled	= false;
-
-
-		hdesc.NumDescriptors	= 8;
 		hdesc.Type				= D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 		hdesc.Flags				= D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 		hr = device->CreateDescriptorHeap(&hdesc, IID_PPV_ARGS(m_srv_heap.GetAddressOf()));
 		THROW_IF_HFAILED(hr, "SRV heap creation fail.")
 	}
+
 }
 
-void GraphicsContext::setRenderTarget(ID3D12Resource** rt_res, D3D12_RENDER_TARGET_VIEW_DESC* rt_descs, uint32_t rt_res_cnt, ID3D12Resource* ds_res, D3D12_DEPTH_STENCIL_VIEW_DESC* ds_desc)
+void GraphicsContext::setRenderTarget(ID3D12Resource** rt_res, uint32_t rtv_cnt, D3D12_CPU_DESCRIPTOR_HANDLE rtv, D3D12_CPU_DESCRIPTOR_HANDLE dsv)
 {
 	auto device = m_graphics->m_device.Get();
-	
 
-	m_rtv_count = rt_res_cnt;
 
-	// Create RTV
-	auto rtv_handle = m_rtv_heap->GetCPUDescriptorHandleForHeapStart();
+	m_rtv_count = rtv_cnt;
 	for(size_t i = 0; i <m_rtv_count; i++)
 	{
 		m_rtv_barriers[i].Transition.pResource = rt_res[i];
-		device->CreateRenderTargetView(rt_res[i], &rt_descs[i], rtv_handle);
-		
-		rtv_handle.ptr += m_graphics->m_RTV_INC;
 	}
-
-	// create DSV
-	m_ds_enabled = ds_res!=nullptr;
-	if(m_ds_enabled)
-	{
-		device->CreateDepthStencilView(
-			ds_res,
-			ds_desc,
-			m_dsv_heap->GetCPUDescriptorHandleForHeapStart()
-		);
-	}
+	m_rtv_handle = rtv;
+	m_dsv_handle = dsv;
+	m_ds_enabled = dsv.ptr!=0;
 }
+
 
 void GraphicsContext::begin()
 {
 	m_cmd_alloc->Reset();
 	m_cmd_list->Reset(m_cmd_alloc.Get(), nullptr);
 
-	for(size_t i = 0; i <m_rtv_count; i++)
+	if(m_rtv_count>0)
 	{
-		m_rtv_barriers[i].Transition.StateBefore	= D3D12_RESOURCE_STATE_PRESENT;
-		m_rtv_barriers[i].Transition.StateAfter		= D3D12_RESOURCE_STATE_RENDER_TARGET;
+		for(size_t i = 0; i <m_rtv_count; i++)
+		{
+			m_rtv_barriers[i].Type						= D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+			m_rtv_barriers[i].Flags						= D3D12_RESOURCE_BARRIER_FLAG_NONE;
+			m_rtv_barriers[i].Transition.StateBefore	= D3D12_RESOURCE_STATE_PRESENT;
+			m_rtv_barriers[i].Transition.StateAfter		= D3D12_RESOURCE_STATE_RENDER_TARGET;
+			m_rtv_barriers[i].Transition.Subresource	= D3D12_RESOURCE_BARRIER_FLAG_NONE;
+		}
+		m_cmd_list->ResourceBarrier(m_rtv_count, m_rtv_barriers);
 	}
-	m_cmd_list->ResourceBarrier(m_rtv_count, m_rtv_barriers);
-
-	auto rt_handle = m_rtv_heap->GetCPUDescriptorHandleForHeapStart();
-	auto ds_handle = m_dsv_heap->GetCPUDescriptorHandleForHeapStart();
+	auto rt_handle = m_rtv_handle;
+	auto ds_handle = m_dsv_handle;
 	m_cmd_list->OMSetRenderTargets(m_rtv_count, &rt_handle, TRUE, m_ds_enabled ? &ds_handle : nullptr);
 
 	if(m_viewports_count>0)
@@ -126,12 +96,18 @@ void GraphicsContext::begin()
 
 void GraphicsContext::end()
 {
-	for(size_t i = 0; i <m_rtv_count; i++)
+	if(m_rtv_count>0)
 	{
-		m_rtv_barriers[i].Transition.StateBefore	= m_rtv_barriers[i].Transition.StateAfter;
-		m_rtv_barriers[i].Transition.StateAfter		= D3D12_RESOURCE_STATE_PRESENT;
+		for(size_t i = 0; i <m_rtv_count; i++)
+		{
+			m_rtv_barriers[i].Type						= D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+			m_rtv_barriers[i].Flags						= D3D12_RESOURCE_BARRIER_FLAG_NONE;
+			m_rtv_barriers[i].Transition.StateBefore	= m_rtv_barriers[i].Transition.StateAfter;
+			m_rtv_barriers[i].Transition.StateAfter		= D3D12_RESOURCE_STATE_PRESENT;
+			m_rtv_barriers[i].Transition.Subresource	= D3D12_RESOURCE_BARRIER_FLAG_NONE;
+		}
+		m_cmd_list->ResourceBarrier(m_rtv_count, m_rtv_barriers);
 	}
-	m_cmd_list->ResourceBarrier(m_rtv_count, m_rtv_barriers);
 
 	m_cmd_list->Close();
 	m_recoding = false;
@@ -175,7 +151,7 @@ void GraphicsContext::setScissorRects(uint32_t sc_cnt, D3D12_RECT* sc)
 
 void GraphicsContext::clearRenderTarget(uint32_t num, const FLOAT rgba[4], UINT rect_cnt, const D3D12_RECT* rects)
 {
-	auto handle = m_rtv_heap->GetCPUDescriptorHandleForHeapStart();
+	auto handle = m_rtv_handle;
 	handle.ptr	+= m_graphics->m_RTV_INC*num;
 
 	m_cmd_list->ClearRenderTargetView(handle, rgba, rect_cnt, rects);
@@ -187,5 +163,5 @@ void GraphicsContext::clearDepthStencil(D3D12_CLEAR_FLAGS flags, float depth, ui
 	{
 		return;
 	}
-	m_cmd_list->ClearDepthStencilView(m_dsv_heap->GetCPUDescriptorHandleForHeapStart(), flags, depth, stencil, rect_cnt, rects);
+	m_cmd_list->ClearDepthStencilView(m_dsv_handle, flags, depth, stencil, rect_cnt, rects);
 }

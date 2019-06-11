@@ -5,6 +5,12 @@
       <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
       <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
     </Filter>
+    <Filter Include="DebugDrawer">
+      <UniqueIdentifier>{af48cd71-af4b-4a4a-be85-d53449916a4c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Skybox">
+      <UniqueIdentifier>{26b57b7a-571b-4c7c-95ee-fddd6286cd8b}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <None Include="Test.hlsli">
@@ -19,17 +25,20 @@
     <None Include="Common.hlsli">
       <Filter>Source Files</Filter>
     </None>
-    <None Include="SkyboxTest.hlsli">
+    <None Include="HoshiyukiToon.hlsli">
       <Filter>Source Files</Filter>
     </None>
     <None Include="DebugDrawer_Line.hlsli">
-      <Filter>Source Files</Filter>
+      <Filter>DebugDrawer</Filter>
     </None>
     <None Include="SkyboxSimple.hlsli">
-      <Filter>Source Files</Filter>
+      <Filter>Skybox</Filter>
     </None>
-    <None Include="HoshiyukiToon.hlsli">
-      <Filter>Source Files</Filter>
+    <None Include="SkyboxTest.hlsli">
+      <Filter>Skybox</Filter>
+    </None>
+    <None Include="DebugDrawer_Texture.hlsli">
+      <Filter>DebugDrawer</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>
@@ -39,22 +48,34 @@
     <FxCompile Include="Test_vs.hlsl">
       <Filter>Source Files</Filter>
     </FxCompile>
-    <FxCompile Include="DebugView_ps.hlsl">
-      <Filter>Source Files</Filter>
-    </FxCompile>
-    <FxCompile Include="SkyboxTest_vs.hlsl">
-      <Filter>Source Files</Filter>
-    </FxCompile>
-    <FxCompile Include="DebugDrawer_Line_vs.hlsl">
+    <FxCompile Include="Test_shadow_ps.hlsl">
       <Filter>Source Files</Filter>
     </FxCompile>
     <FxCompile Include="DebugDrawer_Line_ps.hlsl">
-      <Filter>Source Files</Filter>
+      <Filter>DebugDrawer</Filter>
     </FxCompile>
-    <FxCompile Include="SkyboxSimple_vs.hlsl">
-      <Filter>Source Files</Filter>
+    <FxCompile Include="DebugDrawer_Line_vs.hlsl">
+      <Filter>DebugDrawer</Filter>
+    </FxCompile>
+    <FxCompile Include="DebugView_ps.hlsl">
+      <Filter>DebugDrawer</Filter>
     </FxCompile>
     <FxCompile Include="SkyboxSimple_ps.hlsl">
+      <Filter>Skybox</Filter>
+    </FxCompile>
+    <FxCompile Include="SkyboxSimple_vs.hlsl">
+      <Filter>Skybox</Filter>
+    </FxCompile>
+    <FxCompile Include="SkyboxTest_vs.hlsl">
+      <Filter>Skybox</Filter>
+    </FxCompile>
+    <FxCompile Include="DebugDrawer_Texture_vs.hlsl">
+      <Filter>DebugDrawer</Filter>
+    </FxCompile>
+    <FxCompile Include="DebugDrawer_Texture_ps.hlsl">
+      <Filter>DebugDrawer</Filter>
+    </FxCompile>
+    <FxCompile Include="Test_shadow_vs.hlsl">
       <Filter>Source Files</Filter>
     </FxCompile>
   </ItemGroup>

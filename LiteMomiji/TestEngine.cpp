@@ -26,6 +26,13 @@ namespace{
 	const TCHAR* WNDCLASS_NAME = TEXT("TinyMomiji");
 
 	TestEngine*	g_main=nullptr;
+
+	constexpr XMVECTORF32 VECTOR_FORWARD	={0,0,1,0};
+	constexpr XMVECTORF32 VECTOR_BACKWARD	={0,0,-1,0};
+	constexpr XMVECTORF32 VECTOR_RIGHT		={1,0,0,0};
+	constexpr XMVECTORF32 VECTOR_LEFT		={-1,0,0,0};
+	constexpr XMVECTORF32 VECTOR_UP			={0,1,0,0};
+	constexpr XMVECTORF32 VECTOR_DOWN		={0,-1,0,0};
 }
 
 template<typename T>
@@ -46,8 +53,10 @@ struct ShaderUniforms
 {
 	XMFLOAT4X4	view;
 	XMFLOAT4X4	projection;
+	XMFLOAT4X4	shadow_mat;
 	XMFLOAT3	camera_position;
 	float		ao;
+	XMFLOAT3	lightdir;
 };
 
 
@@ -95,6 +104,95 @@ LRESULT TestEngine::wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 	return 0;
 }
 
+
+
+
+
+
+int TestEngine::run(int argc, char** argv)
+{
+	setlocale(LC_ALL, "ja_jp");
+	m_phase			= 0.9f;
+	m_time_delta	= m_time_counted = 0;
+	m_time_prev		= Timer::now();
+	m_config.width	= 1280;
+	m_config.height	= 720;
+
+	m_cnt			= 0;
+	m_instance		= GetModuleHandle(nullptr);
+
+	m_config.instacing_count	= 49;
+	m_cam_pos.x = 0;
+	m_cam_pos.y = 1.f;
+	m_cam_pos.z = 30.f;
+	m_cam_rot.x = m_cam_rot.y = m_cam_rot.z = 0.f;
+	m_cam_rot.y = 3.14159f;
+	m_cam_fov	= 60.f;
+	m_ao		= 1.0f;
+
+	m_shadowmap_resolution = XMINT2(256, 256);
+	ZeroMemory(&m_light_rot, sizeof(m_light_rot));
+
+
+	try{
+		initWindow();
+		initGraphics();
+		initResources();
+
+		m_imgui.reset(new ImguiModule());
+		m_imgui->init(m_gfx.get(), m_hwnd, 2, DXGI_FORMAT_R8G8B8A8_UNORM_SRGB);
+		ImGui::StyleColorsDark();
+		m_demo_window = false;
+
+		m_debug_drawer.reset(new DebugDrawer());
+		m_debug_drawer->init(m_gfx.get());
+		m_debug_drawer->setResolution(m_config.width, m_config.height);
+
+		m_input.reset(new Input());
+	}
+	catch(std::exception& e)
+	{
+		printf("%s\n", e.what());
+		getchar();
+		return -1;
+	}
+
+
+	// Main loop
+	MSG msg;
+	while(true)
+	{
+		// OS process
+		auto ret = PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE);
+		if(ret)
+		{
+			// exit application if receive quit message.
+			if(msg.message==WM_QUIT)
+			{
+				break;
+			}
+			TranslateMessage(&msg);
+			DispatchMessage(&msg);
+		}
+
+		// game process
+
+		auto now = Timer::now();
+		std::chrono::duration<double> dur = now-m_time_prev;
+		m_time_prev		= now;
+		m_time_delta	= dur.count();
+		m_time_counted	+= m_time_delta;
+
+		m_input->update();
+		update();
+		render();
+		std::this_thread::yield();
+	}
+	this->shutdown();
+
+
+	return 0;
+}
 
 void TestEngine::initWindow()
 {
@@ -177,12 +275,35 @@ void TestEngine::initGraphics()
 
 		m_frame_index =  m_swapchain->GetCurrentBackBufferIndex();
 
-		m_sc_buffers.reserve(2);
+
+		{
+			D3D12_DESCRIPTOR_HEAP_DESC hdesc;
+			ZeroMemory(&hdesc, sizeof(hdesc));
+			hdesc.NumDescriptors	= 4;
+			hdesc.Type				= D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+			hdesc.Flags				= D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+
+			// Create RTV
+			hr = device->CreateDescriptorHeap(&hdesc, IID_PPV_ARGS(m_swapchain_rtv_heap.GetAddressOf()));
+			THROW_IF_HFAILED(hr, "RTV heap creation fail.")
+		}
+
+		m_swapchain_buffers.reserve(2);
 		for(size_t i=0; i<2; i++)
 		{
-			m_sc_buffers.emplace_back();
-			m_swapchain->GetBuffer(i, IID_PPV_ARGS(m_sc_buffers.back().GetAddressOf()));
+			m_swapchain_buffers.emplace_back();
+			m_swapchain->GetBuffer(i, IID_PPV_ARGS(m_swapchain_buffers.back().GetAddressOf()));
 			THROW_IF_HFAILED(hr, "GetBuffer() Fail.")
+
+			auto handle = m_swapchain_rtv_heap->GetCPUDescriptorHandleForHeapStart();
+			handle.ptr += i*m_gfx->m_RTV_INC;
+
+			D3D12_RENDER_TARGET_VIEW_DESC rdesc;
+			rdesc.Format				= DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+			rdesc.ViewDimension			= D3D12_RTV_DIMENSION_TEXTURE2D;
+			rdesc.Texture2D.MipSlice	= 0;
+			rdesc.Texture2D.PlaneSlice	= 0;
+			device->CreateRenderTargetView(m_swapchain_buffers.back().Get(), &rdesc, handle);
 		}
 	}
 
@@ -221,9 +342,31 @@ void TestEngine::initGraphics()
 			&desc,
 			D3D12_RESOURCE_STATE_DEPTH_WRITE,
 			&cval,
-			IID_PPV_ARGS(m_ds_buffer.GetAddressOf())
+			IID_PPV_ARGS(m_depthstencil_buffer.GetAddressOf())
 		);
 		THROW_IF_HFAILED(hr, "DS buffer creation fail.")
+
+
+
+		{
+			D3D12_DESCRIPTOR_HEAP_DESC hdesc;
+			ZeroMemory(&hdesc, sizeof(hdesc));
+			hdesc.NumDescriptors	= 1;
+			hdesc.Type				= D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+			hdesc.Flags				= D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+
+			// Create RTV
+			hr = device->CreateDescriptorHeap(&hdesc, IID_PPV_ARGS(m_swapchain_dsv_heap.GetAddressOf()));
+			THROW_IF_HFAILED(hr, "RTV heap creation fail.")
+
+
+			D3D12_DEPTH_STENCIL_VIEW_DESC dsd;
+			ZeroMemory(&dsd, sizeof(dsd));
+			dsd.Format			= DXGI_FORMAT_D24_UNORM_S8_UINT;
+			dsd.ViewDimension	= D3D12_DSV_DIMENSION_TEXTURE2D;
+			dsd.Flags			= D3D12_DSV_FLAG_NONE;
+			device->CreateDepthStencilView(m_depthstencil_buffer.Get(), &dsd, m_swapchain_dsv_heap->GetCPUDescriptorHandleForHeapStart());
+		}
 	}
 
 	m_vertex_views.reserve(8);
@@ -412,6 +555,66 @@ void TestEngine::initResources()
 		}
 	}
 
+	// Create Shadow texture
+	{
+		D3D12_HEAP_PROPERTIES prop={};
+		prop.Type					= D3D12_HEAP_TYPE_DEFAULT;
+		prop.CPUPageProperty		= D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+		prop.MemoryPoolPreference	= D3D12_MEMORY_POOL_UNKNOWN;
+		prop.CreationNodeMask		= 1;
+		prop.VisibleNodeMask		= 1;
+
+		D3D12_RESOURCE_DESC desc ={};
+		desc.Dimension			= D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+		desc.Alignment			= 0;
+		desc.Width				= m_shadowmap_resolution.x;
+		desc.Height				= m_shadowmap_resolution.x;
+		desc.DepthOrArraySize	= 1;
+		desc.MipLevels			= 1;
+		desc.Format				= DXGI_FORMAT_R24G8_TYPELESS;
+		desc.SampleDesc.Count	= 1;
+		desc.SampleDesc.Quality	= 0;
+		desc.Flags				= D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+		desc.Layout				= D3D12_TEXTURE_LAYOUT_UNKNOWN;
+
+		D3D12_CLEAR_VALUE cval ={};
+		cval.Format					= DXGI_FORMAT_D24_UNORM_S8_UINT;
+		cval.DepthStencil.Depth		= 1.f;
+		cval.DepthStencil.Stencil	= 0;
+
+		// create buffer
+		hr = device->CreateCommittedResource(
+			&prop,
+			D3D12_HEAP_FLAG_NONE,
+			&desc,
+			D3D12_RESOURCE_STATE_DEPTH_WRITE,
+			&cval,
+			IID_PPV_ARGS(m_shadowmap.GetAddressOf())
+		);
+		THROW_IF_HFAILED(hr, "Shadow buffer creation fail.")
+
+		m_shadowmap_fmt = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
+
+		{
+			D3D12_DESCRIPTOR_HEAP_DESC hdesc;
+			ZeroMemory(&hdesc, sizeof(hdesc));
+			hdesc.NumDescriptors	= 1;
+			hdesc.Type				= D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+			hdesc.Flags				= D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+
+			// Create RTV
+			hr = device->CreateDescriptorHeap(&hdesc, IID_PPV_ARGS(m_shadow_dsv_heap.GetAddressOf()));
+			THROW_IF_HFAILED(hr, "DSV heap creation fail.")
+
+
+			D3D12_DEPTH_STENCIL_VIEW_DESC dsd;
+			ZeroMemory(&dsd, sizeof(dsd));
+			dsd.Format			= DXGI_FORMAT_D24_UNORM_S8_UINT;
+			dsd.ViewDimension	= D3D12_DSV_DIMENSION_TEXTURE2D;
+			dsd.Flags			= D3D12_DSV_FLAG_NONE;
+			device->CreateDepthStencilView(m_depthstencil_buffer.Get(), &dsd, m_shadow_dsv_heap->GetCPUDescriptorHandleForHeapStart());
+		}
+	}
 
 	// Create instacing buffer
 	{
@@ -455,7 +658,7 @@ void TestEngine::initResources()
 	{
 		D3D12_DESCRIPTOR_RANGE dr[1];
 		dr[0].RangeType				= D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-		dr[0].NumDescriptors		= 2;
+		dr[0].NumDescriptors		= 3;
 		dr[0].BaseShaderRegister	= 0;
 		dr[0].RegisterSpace			= 0;
 		dr[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
@@ -472,7 +675,8 @@ void TestEngine::initResources()
 		rs_param[1].DescriptorTable.NumDescriptorRanges = 1;
 		rs_param[1].DescriptorTable.pDescriptorRanges	= dr;
 
-		D3D12_STATIC_SAMPLER_DESC	sampler[1];
+		D3D12_STATIC_SAMPLER_DESC	sampler[2];
+		// Texture
 		sampler[0].Filter			= D3D12_FILTER_COMPARISON_MIN_MAG_MIP_LINEAR;
 		sampler[0].AddressU			= sampler[0].AddressV = sampler[0].AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
 		sampler[0].MipLODBias		= 0;
@@ -484,11 +688,24 @@ void TestEngine::initResources()
 		sampler[0].ShaderRegister	= 0;
 		sampler[0].RegisterSpace	= 0;
 		sampler[0].ShaderVisibility	= D3D12_SHADER_VISIBILITY_PIXEL;
+		// Shadow map
+		sampler[1].Filter			= D3D12_FILTER_COMPARISON_MIN_MAG_MIP_LINEAR;
+		sampler[1].AddressU			= sampler[1].AddressV = sampler[1].AddressW = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+		sampler[1].MipLODBias		= 0;
+		sampler[1].MaxAnisotropy	= 1;
+		sampler[1].ComparisonFunc	= D3D12_COMPARISON_FUNC_LESS;
+		sampler[1].BorderColor		= D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
+		sampler[1].MinLOD			= 0.0f;
+		sampler[1].MaxLOD			= D3D12_FLOAT32_MAX;
+		sampler[1].ShaderRegister	= 1;
+		sampler[1].RegisterSpace	= 0;
+		sampler[1].ShaderVisibility	= D3D12_SHADER_VISIBILITY_PIXEL;
+
 		
 		D3D12_ROOT_SIGNATURE_DESC	rs_desc={};
 		rs_desc.NumParameters		= 2;
 		rs_desc.pParameters			= rs_param;
-		rs_desc.NumStaticSamplers	= 1;
+		rs_desc.NumStaticSamplers	= 2;
 		rs_desc.pStaticSamplers		= sampler;
 		rs_desc.Flags =
 			D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT
@@ -557,8 +774,25 @@ void TestEngine::initResources()
 		ps_desc.DSVFormat						= DXGI_FORMAT_D24_UNORM_S8_UINT;
 		ps_desc.SampleDesc.Count				= 1;
 
-		m_pso.reset(new PipelineState());
-		m_pso->init(m_gfx.get(), &rs_desc, &ps_desc);
+		// Create Forward PSO
+		m_forward_pso.reset(new PipelineState());
+		m_forward_pso->init(m_gfx.get(), &rs_desc, &ps_desc);
+
+		// Shadow PSO
+		ps_blob.Reset();
+		hr = D3DReadFileToBlob(L"GameResources/shaders/Test_shadow_vs.cso", ps_blob.GetAddressOf());
+		THROW_IF_HFAILED(hr, "Can not open the vertex shader file.")
+
+		ps_blob.Reset();
+		hr = D3DReadFileToBlob(L"GameResources/shaders/Test_shadow_ps.cso", ps_blob.GetAddressOf());
+		THROW_IF_HFAILED(hr, "Can not open the pixel shader file.")
+
+		ps_desc.VS	={reinterpret_cast<UINT8*>(vs_blob->GetBufferPointer()), vs_blob->GetBufferSize()};
+		ps_desc.PS ={reinterpret_cast<UINT8*>(ps_blob->GetBufferPointer()), ps_blob->GetBufferSize()};
+		ps_desc.NumRenderTargets				= 1;
+		ps_desc.RTVFormats[0]					= DXGI_FORMAT_R8G8B8A8_UNORM;
+		m_foward_shadow_caster.reset(new PipelineState());
+		m_foward_shadow_caster->init(m_gfx.get(), &rs_desc, &ps_desc);
 
 
 		vs_blob.Reset();
@@ -575,6 +809,8 @@ void TestEngine::initResources()
 		ps_desc.DepthStencilState.StencilEnable		= FALSE;
 		ps_desc.DepthStencilState.DepthFunc			= D3D12_COMPARISON_FUNC_ALWAYS;
 		ps_desc.DepthStencilState.DepthWriteMask	= D3D12_DEPTH_WRITE_MASK_ZERO;
+		ps_desc.NumRenderTargets				= 1;
+		ps_desc.RTVFormats[0]					= DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
 		ps_desc.VS	={reinterpret_cast<UINT8*>(vs_blob->GetBufferPointer()), vs_blob->GetBufferSize()};
 		ps_desc.PS	={reinterpret_cast<UINT8*>(ps_blob->GetBufferPointer()), ps_blob->GetBufferSize()};
 
@@ -603,6 +839,15 @@ void TestEngine::initResources()
 		desc.TextureCube.MostDetailedMip	= 0;
 		// Create the SRV
 		m_gfx->m_device->CreateShaderResourceView(m_tex_env.Get(), &desc, handle);
+
+		handle.ptr += m_gfx->m_SRV_INC;
+		desc.ViewDimension					= D3D12_SRV_DIMENSION_TEXTURE2D;
+		desc.Shader4ComponentMapping		= D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+		desc.Format							= m_shadowmap_fmt;
+		desc.TextureCube.MipLevels			= 1;
+		desc.TextureCube.MostDetailedMip	= 0;
+		// Create the SRV
+		m_gfx->m_device->CreateShaderResourceView(m_shadowmap.Get(), &desc, handle);
 	}
 }
 
@@ -611,7 +856,7 @@ void TestEngine::shutdown()
 	m_instacing_buffer->Unmap(0, nullptr);
 	m_imgui->shutdown();
 
-	m_sc_buffers.clear();
+	m_swapchain_buffers.clear();
 	m_swapchain.Reset();
 }
 
@@ -664,15 +909,23 @@ void TestEngine::update()
 	// debug drawer
 	{
 		XMFLOAT3 lp[]={
-			{0,0,0},
-			{10,10,0},
-			{20,10,0},
-			{-20,5,-20},
-			{-20,0,0},
+			{-5,0,0},
+			{5,0,0},
+			{0,-5,0},
+			{0,5,0},
+			{0,0,-5},
+			{0,0,5},
 		};
 
-		m_debug_drawer->drawLines(lp, 5, XMColorRGBToSRGB(Colors::Red), XMColorRGBToSRGB(Colors::Blue));
-		m_debug_drawer->drawWireCube(XMVectorSet(5, 5, 5, 1), XMVectorSet(5,5,5,1), g_XMZero, XMColorRGBToSRGB(Colors::Red));
+		m_debug_drawer->drawLines(&lp[0], 2, XMColorRGBToSRGB(Colors::Red), XMColorRGBToSRGB(Colors::Red));
+		m_debug_drawer->drawLines(&lp[2], 2, XMColorRGBToSRGB(Colors::Green), XMColorRGBToSRGB(Colors::Green));
+		m_debug_drawer->drawLines(&lp[4], 2, XMColorRGBToSRGB(Colors::Blue), XMColorRGBToSRGB(Colors::Blue));
+		m_debug_drawer->drawWireCube(XMVectorNegate(g_XMOne), g_XMTwo, g_XMZero, XMColorRGBToSRGB(Colors::Gray));
+		/*
+		m_debug_drawer->drawTexture(
+			m_shadowmap.Get(), m_shadowmap_fmt,
+			XMVectorSet(0, 0, 128, 128), 0.1f
+		);*/
 	}
 }
 
@@ -680,21 +933,12 @@ void TestEngine::setRTVCurrent()
 {
 	m_frame_index = m_swapchain->GetCurrentBackBufferIndex();
 
-	// setup rtv
-	ID3D12Resource*	rt_res[]={m_sc_buffers[m_frame_index].Get()};
-	D3D12_RENDER_TARGET_VIEW_DESC rdesc;
-	rdesc.Format				= DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
-	rdesc.ViewDimension			= D3D12_RTV_DIMENSION_TEXTURE2D;
-	rdesc.Texture2D.MipSlice	= 0;
-	rdesc.Texture2D.PlaneSlice	= 0;
+	auto handle_rt = m_swapchain_rtv_heap->GetCPUDescriptorHandleForHeapStart();
+	handle_rt.ptr += m_frame_index*m_gfx->m_RTV_INC;
 
-	D3D12_DEPTH_STENCIL_VIEW_DESC dsd;
-	ZeroMemory(&dsd, sizeof(dsd));
-	dsd.Format			= DXGI_FORMAT_D24_UNORM_S8_UINT;
-	dsd.ViewDimension	= D3D12_DSV_DIMENSION_TEXTURE2D;
-	dsd.Flags			= D3D12_DSV_FLAG_NONE;
 
-	m_gfx_context->setRenderTarget(rt_res, &rdesc, 1, m_ds_buffer.Get(), &dsd);
+	m_gfx_context->setRenderTarget(m_swapchain_buffers[m_frame_index].GetAddressOf(), 1, handle_rt, m_swapchain_dsv_heap->GetCPUDescriptorHandleForHeapStart());
+
 
 	D3D12_VIEWPORT vp;
 	vp.Width	= m_config.width;
@@ -709,6 +953,30 @@ void TestEngine::setRTVCurrent()
 	sr.right	= m_config.width;
 	sr.bottom	= m_config.height;
 	m_gfx_context->setScissorRects(1, &sr);
+}
+
+void TestEngine::drawObjects(ID3D12GraphicsCommandList* cmd_list)
+{
+	{
+		auto p_mesh = m_mesh_file.get();
+
+		m_vertex_views[0] = p_mesh->m_vb_view;
+		cmd_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		cmd_list->IASetVertexBuffers(0, m_vertex_views.size(), m_vertex_views.data());
+		cmd_list->IASetIndexBuffer(&p_mesh->m_ib_view);
+
+		cmd_list->DrawIndexedInstanced(p_mesh->m_submesh_pairs[0].count, m_config.instacing_count-1, p_mesh->m_submesh_pairs[0].offset, 0, 0);
+	}
+	{
+		auto p_mesh = m_mesh_plane.get();
+
+		m_vertex_views[0] = p_mesh->m_vb_view;
+		cmd_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		cmd_list->IASetVertexBuffers(0, m_vertex_views.size(), m_vertex_views.data());
+		cmd_list->IASetIndexBuffer(&p_mesh->m_ib_view);
+
+		cmd_list->DrawIndexedInstanced(p_mesh->m_submesh_pairs[0].count, 1, p_mesh->m_submesh_pairs[0].offset, 0, m_config.instacing_count-1);
+	}
 }
 
 void TestEngine::render()
@@ -773,28 +1041,20 @@ void TestEngine::render()
 		);
 	}
 
-	setRTVCurrent();
-
 
 	// set shader uniforms
 	ShaderUniforms su;
-	DirectX::XMFLOAT4X4 sview;
+	DirectX::XMFLOAT4X4 camera_view_mat;
 	{
-		auto look_forward	= XMVector3Rotate(XMVectorSet(0, 0, 1, 0), XMQuaternionRotationRollPitchYawFromVector(XMLoadFloat3(&m_cam_rot)));
-		auto look_up		= XMVector3Rotate(XMVectorSet(0, 1, 0, 0), XMQuaternionRotationRollPitchYawFromVector(XMLoadFloat3(&m_cam_rot)));
-		auto aspect			= (float)m_config.width/(float)m_config.height;
-		auto fov			= XMConvertToRadians(m_cam_fov);
-
-		auto view = XMMatrixLookToLH(XMLoadFloat3(&m_cam_pos), look_forward, look_up);
-		auto proj = XMMatrixPerspectiveFovLH(fov, aspect, 0.1f, 1000.f);
-
-		XMStoreFloat4x4(&su.view, view);
-		XMStoreFloat4x4(&sview, XMMatrixLookToLH(g_XMZero, look_forward, look_up));
-		XMStoreFloat4x4(&su.projection, proj);
 		su.camera_position	= m_cam_pos;
 		su.ao				= m_ao;
-
-		m_debug_drawer->setVPMatrix(view, proj);
+		XMStoreFloat3(
+			&su.lightdir,
+			XMVector3Rotate(
+				VECTOR_FORWARD,
+				XMQuaternionRotationRollPitchYawFromVector(XMLoadFloat3(&m_light_rot))
+			)
+		);
 	}
 
 
@@ -803,17 +1063,88 @@ void TestEngine::render()
 	auto cmd_list	= m_gfx_context->m_cmd_list.Get();
 	ID3D12CommandList* cmd_lists[] ={cmd_list};
 
+
+
+	// Shadow maps
+	{
+		auto rot	= XMQuaternionRotationRollPitchYawFromVector(XMLoadFloat3(&m_light_rot));
+		auto view	= XMMatrixLookToLH(XMVectorSet(0,50.0f,0,1), VECTOR_DOWN, VECTOR_FORWARD);
+		auto proj	= XMMatrixOrthographicLH(100,100, 0.1, 100);
+
+		XMStoreFloat4x4(&su.view, view);
+		XMStoreFloat4x4(&su.projection, proj);
+		XMStoreFloat4x4(&su.shadow_mat, XMMatrixMultiply(view,proj));
+	}
+	if(true){
+		D3D12_CPU_DESCRIPTOR_HANDLE handle_rt;
+		handle_rt.ptr = 0;
+
+		m_gfx_context->setRenderTarget(m_shadowmap.GetAddressOf(), 0, handle_rt, m_shadow_dsv_heap->GetCPUDescriptorHandleForHeapStart());
+
+		D3D12_VIEWPORT vp;
+		vp.Width	= (float)m_shadowmap_resolution.x;
+		vp.Height	= (float)m_shadowmap_resolution.y;
+		vp.TopLeftX = vp.TopLeftY = 0;
+		vp.MinDepth = 0.f;
+		vp.MaxDepth	= 1.f;
+		m_gfx_context->setViewports(1, &vp);
+
+		D3D12_RECT sr;
+		sr.left		= sr.top = 0;
+		sr.right	= m_shadowmap_resolution.x;
+		sr.bottom	= m_shadowmap_resolution.y;
+		m_gfx_context->setScissorRects(1, &sr);
+	}
+	else{
+		setRTVCurrent();
+	}
+	m_gfx_context->begin();
+	do{
+		// set pso
+		m_gfx_context->setPipelineState(m_foward_shadow_caster.get());
+		cmd_list->SetDescriptorHeaps(1, m_gfx_context->m_srv_heap.GetAddressOf());
+
+		// set shader uniforms
+		cmd_list->SetGraphicsRoot32BitConstants(0, sizeof(ShaderUniforms)/4, &su, 0);
+		//cmd_list->SetGraphicsRootDescriptorTable(1, m_gfx_context->m_srv_heap->GetGPUDescriptorHandleForHeapStart());
+
+		m_gfx_context->clearDepthStencil(D3D12_CLEAR_FLAG_DEPTH|D3D12_CLEAR_FLAG_STENCIL, 1.f, 0, 0, nullptr);
+		drawObjects(cmd_list);
+	}
+	while(false);
+	m_gfx_context->end();
+	cmd_queue->ExecuteCommandLists(1, cmd_lists);
+	m_gfx->waitForDone();
+
+	
+	
+	setRTVCurrent();
+
+
 	// Draw Skybox
+	{
+		auto rot		= XMQuaternionRotationRollPitchYawFromVector(XMLoadFloat3(&m_cam_rot));
+		auto look_fwd	= XMVector3Rotate(VECTOR_FORWARD, rot);
+		auto look_up	= XMVector3Rotate(VECTOR_UP, rot);
+		auto aspect		= (float)m_config.width/(float)m_config.height;
+		auto fov		= XMConvertToRadians(m_cam_fov);
+
+		auto view = XMMatrixLookToLH(XMLoadFloat3(&m_cam_pos), look_fwd, look_up);
+		auto proj = XMMatrixPerspectiveFovLH(fov, aspect, 0.1f, 100.f);
+
+		XMStoreFloat4x4(&camera_view_mat, view);
+		m_debug_drawer->setVPMatrix(view, proj);
+
+		XMStoreFloat4x4(&su.view, XMMatrixLookToLH(g_XMZero, look_fwd, look_up));
+		XMStoreFloat4x4(&su.projection, proj);
+	}
 	m_gfx_context->begin();
 	{
 		// set pso
 		m_gfx_context->setPipelineState(m_pso_skybox.get());
 		cmd_list->SetDescriptorHeaps(1, m_gfx_context->m_srv_heap.GetAddressOf());
 
-		{
-			cmd_list->SetGraphicsRoot32BitConstants(0, sizeof(XMFLOAT4X4)*2/4, &su.view, 0);
-			cmd_list->SetGraphicsRoot32BitConstants(0, sizeof(XMFLOAT4X4)/4, &sview, 0);
-		}
+		cmd_list->SetGraphicsRoot32BitConstants(0, sizeof(XMFLOAT4X4)*2/4, &su.view, 0);
 		cmd_list->SetGraphicsRootDescriptorTable(1, m_gfx_context->m_srv_heap->GetGPUDescriptorHandleForHeapStart());
 
 		const float cval[] ={0.5f,0.5f,0.5f,1.f};
@@ -834,138 +1165,41 @@ void TestEngine::render()
 	cmd_queue->ExecuteCommandLists(1, cmd_lists);
 	m_gfx->waitForDone();
 
-	
+
+	// Foward Objects
+	{
+		su.view = camera_view_mat;
+	}
 	m_gfx_context->begin();
 	do{
 		// set pso
-		m_gfx_context->setPipelineState(m_pso.get());
+		m_gfx_context->setPipelineState(m_forward_pso.get());
 		cmd_list->SetDescriptorHeaps(1, m_gfx_context->m_srv_heap.GetAddressOf());
 
 		// set shader uniforms
 		cmd_list->SetGraphicsRoot32BitConstants(0, sizeof(ShaderUniforms)/4, &su, 0);
 		cmd_list->SetGraphicsRootDescriptorTable(1, m_gfx_context->m_srv_heap->GetGPUDescriptorHandleForHeapStart());
 
-		{
-			auto p_mesh = m_mesh_file.get();
-
-			m_vertex_views[0] = p_mesh->m_vb_view;
-			cmd_list->IASetPrimitiveTopology	(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-			cmd_list->IASetVertexBuffers		(0, m_vertex_views.size(), m_vertex_views.data());
-			cmd_list->IASetIndexBuffer			(&p_mesh->m_ib_view);
-
-			cmd_list->DrawIndexedInstanced(p_mesh->m_submesh_pairs[0].count, m_config.instacing_count-1, p_mesh->m_submesh_pairs[0].offset, 0, 0);
-		}
-		{
-			auto p_mesh = m_mesh_plane.get();
-
-			m_vertex_views[0] = p_mesh->m_vb_view;
-			cmd_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-			cmd_list->IASetVertexBuffers(0, m_vertex_views.size(), m_vertex_views.data());
-			cmd_list->IASetIndexBuffer(&p_mesh->m_ib_view);
-
-			cmd_list->DrawIndexedInstanced(p_mesh->m_submesh_pairs[0].count, 1, p_mesh->m_submesh_pairs[0].offset, 0, m_config.instacing_count-1);
-		}
-	}
-	while(false);
+		drawObjects(cmd_list);
+	} while(false);
 	m_gfx_context->end();
 	cmd_queue->ExecuteCommandLists(1, cmd_lists);
 	m_gfx->waitForDone();
 	
+	
 	// Render DebugDrawer
 	m_debug_drawer->render(m_gfx.get(), m_gfx_context.get());
 	m_debug_drawer->flush();
-
+	
 	// render imgui
 	m_gfx_context->begin();
 	{
 		m_imgui->render(m_gfx_context.get());
 	}
 	m_gfx_context->end();
-
-
 	cmd_queue->ExecuteCommandLists(1, cmd_lists);
 	m_gfx->waitForDone();
 
+
 	m_swapchain->Present(1, 0);
-}
-
-int TestEngine::run(int argc, char** argv)
-{
-	setlocale(LC_ALL, "ja_jp");
-	m_phase			= 0.9f;
-	m_time_delta	= m_time_counted = 0;
-	m_time_prev		= Timer::now();
-	m_config.width	= 1280;
-	m_config.height	= 720;
-
-	m_cnt			= 0;
-	m_instance		= GetModuleHandle(nullptr);
-
-	m_config.instacing_count	= 49;
-	m_cam_pos.x = 0;
-	m_cam_pos.y = 1.f;
-	m_cam_pos.z = 30.f;
-	m_cam_rot.x = m_cam_rot.y = m_cam_rot.z = 0.f;
-	m_cam_rot.y = 3.14159f;
-	m_cam_fov	= 60.f;
-	m_ao		= 1.0f;
-
-
-	try{
-		initWindow();
-		initGraphics();
-		initResources();
-
-		m_imgui.reset(new ImguiModule());
-		m_imgui->init(m_gfx.get(), m_hwnd, 2, DXGI_FORMAT_R8G8B8A8_UNORM_SRGB);
-		ImGui::StyleColorsDark();
-		m_demo_window = false;
-
-		m_debug_drawer.reset(new DebugDrawer());
-		m_debug_drawer->init(m_gfx.get());
-
-		m_input.reset(new Input());
-	}
-	catch(std::exception& e)
-	{
-		printf("%s\n", e.what());
-		getchar();
-		return -1;
-	}
-
-
-	// Main loop
-	MSG msg;
-	while(true)
-	{
-		// OS process
-		auto ret = PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE);
-		if(ret)
-		{
-			// exit application if receive quit message.
-			if(msg.message==WM_QUIT)
-			{
-				break;
-			}
-			TranslateMessage(&msg);
-			DispatchMessage(&msg);
-		}
-
-		// game process
-
-		auto now = Timer::now();
-		std::chrono::duration<double> dur = now-m_time_prev;
-		m_time_prev		= now;
-		m_time_delta	= dur.count();
-		m_time_counted	+= m_time_delta;
-
-		m_input->update();
-		update();
-		render();
-		std::this_thread::yield();
-	}
-	this->shutdown();
-
-
-	return 0;
 }

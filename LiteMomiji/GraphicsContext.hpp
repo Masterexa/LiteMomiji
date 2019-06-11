@@ -26,8 +26,8 @@ struct GraphicsContext{
 
 			std::vector<D3D12_VERTEX_BUFFER_VIEW>	m_vb_views;
 
-			Microsoft::WRL::ComPtr<ID3D12DescriptorHeap>	m_rtv_heap;
-			Microsoft::WRL::ComPtr<ID3D12DescriptorHeap>	m_dsv_heap;
+			D3D12_CPU_DESCRIPTOR_HANDLE	m_rtv_handle;
+			D3D12_CPU_DESCRIPTOR_HANDLE	m_dsv_handle;
 			D3D12_RESOURCE_BARRIER		m_rtv_barriers[8];
 			size_t						m_rtv_count;
 			bool						m_ds_enabled;
@@ -46,7 +46,7 @@ struct GraphicsContext{
 
 		/* Methods */
 			uint32_t calculateDescriptorHeapCapacity(uint32_t srv_each_draw, uint32_t samplers_each_draw);
-			void setRenderTarget(ID3D12Resource** rt_res, D3D12_RENDER_TARGET_VIEW_DESC* rt_descs, uint32_t rt_res_cnt, ID3D12Resource* ds_res, D3D12_DEPTH_STENCIL_VIEW_DESC* ds_desc);
+			void setRenderTarget(ID3D12Resource** rt_res, uint32_t rtv_cnt, D3D12_CPU_DESCRIPTOR_HANDLE rtv, D3D12_CPU_DESCRIPTOR_HANDLE dsv);
 
 			void begin();
 			void end();
