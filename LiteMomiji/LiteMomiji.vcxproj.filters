@@ -98,9 +98,6 @@
     <ClCompile Include="Mesh.cpp">
       <Filter>Source Files\&lt;src&gt;</Filter>
     </ClCompile>
-    <ClCompile Include="main.cpp">
-      <Filter>Source Files\&lt;src&gt;</Filter>
-    </ClCompile>
     <ClCompile Include="ModelReader.cpp">
       <Filter>Source Files\&lt;src&gt;</Filter>
     </ClCompile>
@@ -143,5 +140,6 @@
     <ClCompile Include="Swapchain.cpp">
       <Filter>Source Files\&lt;src&gt;</Filter>
     </ClCompile>
+    <ClCompile Include="main.cpp" />
   </ItemGroup>
 </Project>

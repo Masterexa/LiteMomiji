@@ -825,12 +825,12 @@ void TestEngine::update()
 			{0,0,-5},
 			{0,0,5},
 		};
-		/*
+		
 		m_debug_drawer->drawLines(&lp[0], 2, XMColorRGBToSRGB(Colors::Red), XMColorRGBToSRGB(Colors::Red));
 		m_debug_drawer->drawLines(&lp[2], 2, XMColorRGBToSRGB(Colors::Green), XMColorRGBToSRGB(Colors::Green));
 		m_debug_drawer->drawLines(&lp[4], 2, XMColorRGBToSRGB(Colors::Blue), XMColorRGBToSRGB(Colors::Blue));
 		m_debug_drawer->drawWireCube(XMVectorNegate(g_XMOne), g_XMTwo, g_XMZero, XMColorRGBToSRGB(Colors::Gray));
-		*/
+		
 		
 		/*
 		m_debug_drawer->drawTexture(
@@ -1062,7 +1062,7 @@ void TestEngine::render()
 	m_gfx_context->end(false);
 	cmd_queue->ExecuteCommandLists(1, cmd_lists);
 	
-	//m_gfx->waitForDone();
+	m_gfx->waitForDone();
 
 
 	// Foward Objects
@@ -1087,7 +1087,7 @@ void TestEngine::render()
 	
 	
 	// Render DebugDrawer
-	//m_debug_drawer->render(m_gfx.get(), m_gfx_context.get());
+	m_debug_drawer->render(m_gfx.get(), m_gfx_context.get());
 	m_debug_drawer->flush();
 	
 	// render imgui
