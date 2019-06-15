@@ -93,6 +93,8 @@ UINT64 getRequiredIntermediateSize(
 			hr = CreateDXGIFactory(IID_PPV_ARGS(m_dxgi_factory.GetAddressOf()));
 			THROW_IF_HFAILED(hr, "CreateDXGIFactory() Fail.")
 		}
+
+		//m_device->CheckFeatureSupport(D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS, )
 	}
 	//-------------------------------------------------------------------------
 	

@@ -1,0 +1,31 @@
+{
+  "D3D12RootSignature": {
+    "Parameters": [
+      {
+        "ParameterType": "32BitConstants",
+        "ShaderVisibility": [ "All" ],
+        "Num32BitValues": 55,
+        "RegisterSpace": 0,
+        "ShaderRegister": 0
+      },
+      {
+        "ParameterType": "DescriptorTable",
+        "ShaderVisibility": [ "Pixel" ],
+        "DescriptorRanges": [
+          {
+            "type": "SRV",
+            "numDescriptors": 3,
+            "baseShaderRegister": 0,
+            "registerSpace": 0
+          }
+        ]
+      }
+    ],
+    "StaticSamplers": {
+
+    }
+  },
+  "pipelineState": {
+
+  }
+}

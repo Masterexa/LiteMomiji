@@ -114,7 +114,7 @@ D3D12_CPU_DESCRIPTOR_HANDLE RenderTarget::getCurrentRTV() const
 	}
 
 	h = m_rtv_heap->GetCPUDescriptorHandleForHeapStart();
-	h.ptr += m_graph->m_RTV_INC*m_buffer_current_index;
+	h.ptr += m_graph->m_RTV_INC*m_buffer_current_index*m_target_count;
 	return h;
 }
 

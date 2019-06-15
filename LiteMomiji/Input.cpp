@@ -9,6 +9,10 @@ DirectX::XMVECTOR getStickNormalized(float x, float y, float max_val, float dead
 {
 	auto v		= XMVectorSet(x, y, 0.0f, 1.0f);
 	auto mag	= XMVectorGetX(XMVector2Length(v));
+	if(mag<=0.0f)
+	{
+		return g_XMZero;
+	}
 
 	v = XMVectorScale(v, 1/mag); // normalize input vector
 	auto mag_norm	= 0.0f;

@@ -128,8 +128,7 @@ int TestEngine::run(int argc, char** argv)
 	m_ao		= 1.0f;
 
 	m_shadowmap_resolution = XMINT2(1024, 1024);
-	ZeroMemory(&m_light_rot, sizeof(m_light_rot));
-
+	m_light_rot = XMFLOAT3(0.967f, 0.f, 0.f);
 
 	try{
 		initWindow();
@@ -431,6 +430,46 @@ void TestEngine::initResources()
 		m_tex_ao_fmt = MakeSRGB(meta.format);
 	}
 
+	// Create white texture for default texture
+	{
+		D3D12_HEAP_PROPERTIES prop={};
+		prop.Type					= D3D12_HEAP_TYPE_DEFAULT;
+		prop.CPUPageProperty		= D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+		prop.MemoryPoolPreference	= D3D12_MEMORY_POOL_UNKNOWN;
+		prop.CreationNodeMask		= 1;
+		prop.VisibleNodeMask		= 1;
+
+		D3D12_RESOURCE_DESC desc ={};
+		desc.Dimension			= D3D12_RESOURCE_DIMENSION_TEXTURE1D;
+		desc.Alignment			= 0;
+		desc.Width				= 1;
+		desc.Height				= 1;
+		desc.DepthOrArraySize	= 1;
+		desc.MipLevels			= 1;
+		desc.Format				= DXGI_FORMAT_R8G8B8A8_UNORM;
+		desc.SampleDesc.Count	= 1;
+		desc.SampleDesc.Quality	= 0;
+		desc.Flags				= D3D12_RESOURCE_FLAG_NONE;
+		desc.Layout				= D3D12_TEXTURE_LAYOUT_UNKNOWN;
+
+		// create buffer
+		hr = device->CreateCommittedResource(
+			&prop,
+			D3D12_HEAP_FLAG_NONE,
+			&desc,
+			D3D12_RESOURCE_STATE_GENERIC_READ,
+			nullptr,
+			IID_PPV_ARGS(m_tex_default_white.GetAddressOf())
+		);
+		THROW_IF_HFAILED(hr, "Default texture creation fail.")
+
+		uint32_t rgba = 0xffffffff;
+		D3D12_SUBRESOURCE_DATA subres={};
+		subres.pData = &rgba;
+
+		m_gfx->updateSubresources(m_tex_default_white.Get(), 0, 0, &subres);
+	}
+
 	// Load Cube Texture
 	{
 		ScratchImage	image;
@@ -600,7 +639,7 @@ void TestEngine::initResources()
 		sampler[1].MipLODBias		= 0;
 		sampler[1].MaxAnisotropy	= 1;
 		sampler[1].ComparisonFunc	= D3D12_COMPARISON_FUNC_LESS_EQUAL;
-		sampler[1].BorderColor		= D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
+		sampler[1].BorderColor		= D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;
 		sampler[1].MinLOD			= 0.0f;
 		sampler[1].MaxLOD			= D3D12_FLOAT32_MAX;
 		sampler[1].ShaderRegister	= 1;
@@ -679,7 +718,7 @@ void TestEngine::initResources()
 		ps_desc.RTVFormats[0]					= DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
 		ps_desc.DSVFormat						= DXGI_FORMAT_D24_UNORM_S8_UINT;
 		ps_desc.SampleDesc.Count				= 1;
-
+		
 		// Create Forward PSO
 		m_forward_pso.reset(new PipelineState());
 		m_forward_pso->init(m_gfx.get(), &rs_desc, &ps_desc);
@@ -754,6 +793,7 @@ void TestEngine::initResources()
 		desc.TextureCube.MostDetailedMip	= 0;
 		// Create the SRV
 		m_gfx->m_device->CreateShaderResourceView(m_shadowmap->m_ds_buffer.Get(), &desc, handle);
+
 	}
 }
 
@@ -772,13 +812,17 @@ void TestEngine::update()
 {
 	{
 		auto move	= XMVectorSwizzle<0, 3, 1, 3>(m_input->getLStickVector(0));
+		auto updown	= m_input->getTriggerVector(0);
 		auto torque	= XMVectorSwizzle<1, 0, 2, 3>(XMVectorMultiply(m_input->getRStickVector(0), XMVectorSet(1, -1, 0, 0)));
 		auto rot	= XMLoadFloat3(&m_cam_rot);
 
-		move = XMVectorMultiply(XMVectorSet(1, 0, 1, 1), XMVectorAdd(
+		updown = XMVectorSet(0, XMVectorGetY(updown)-XMVectorGetX(updown), 0, 0);
+
+		move = XMVectorMultiply(XMVectorSet(1, 0, 1, 1),XMVectorAdd(
 			XMVector3Rotate(move, XMQuaternionRotationRollPitchYawFromVector(rot)),
 			XMVector3Rotate(move, XMQuaternionRotationRollPitchYawFromVector(rot))
 		));
+		move = XMVectorAdd(move, updown);
 
 		XMStoreFloat3(
 			&m_cam_pos,
@@ -805,6 +849,8 @@ void TestEngine::update()
 			ImGui::Text("FPS : %f", 1.0f/m_time_delta);
 			ImGui::Checkbox("Show Demo Window", &m_demo_window);
 			ImGui::SliderFloat("Phase", &m_phase, 0.f, 1.f);
+			
+			ImGui::SliderFloat3("Sun Rotation", reinterpret_cast<float*>(&m_light_rot), -3.14159, 3.14159);
 			
 			ImGui::Text("Camera");
 			ImGui::InputFloat3("Position", reinterpret_cast<float*>(&m_cam_pos));
@@ -896,19 +942,18 @@ void TestEngine::render()
 		auto pos = XMVectorLerp(
 			XMVectorSet(
 				cosf(freq(0.1f)*tan_f)*r,
-				sinf(freq( sinf((float)idx)*0.1f )*tan_f)*r,
+				sinf(freq(sinf((float)idx)*0.1f)*tan_f)*r,
 				-sinf(freq(0.1f)*tan_f)*r,
 				1.f
 			),
 			XMVectorSet(
-				3.0f * fmodf(i,edge),
-				0.f,
+				3.0f * fmodf(i, edge),
+				1.f,
 				3.0f * (float)(i/(UINT32)edge),
 				1.f
 			),
 			m_phase
 		);
-		pos = XMVectorAdd(XMVectorSet(0, 1, 0, 0), pos);
 		auto rot = XMVectorLerp(XMQuaternionRotationRollPitchYawFromVector(pos), XMQuaternionIdentity(), m_phase);
 
 
@@ -916,7 +961,7 @@ void TestEngine::render()
 		auto it = &((InstancingData*)m_instancing_ptr)[i];
 		XMStoreFloat4x4(
 			&it->world,
-			XMMatrixTransformation(XMVectorZero(), XMQuaternionIdentity(), XMVectorSet(1,1,1,1), XMVectorZero(), rot, pos)
+			XMMatrixTransformation(XMVectorZero(), XMQuaternionIdentity(), g_XMOne, XMVectorZero(), rot, pos)
 		);
 		XMStoreFloat4(
 			&it->color,
@@ -955,7 +1000,7 @@ void TestEngine::render()
 		XMStoreFloat3(
 			&su.lightdir,
 			XMVector3Rotate(
-				VECTOR_FORWARD,
+				VECTOR_UP,
 				XMQuaternionRotationRollPitchYawFromVector(XMLoadFloat3(&m_light_rot))
 			)
 		);
@@ -971,9 +1016,15 @@ void TestEngine::render()
 	
 	// Shadow maps
 	{
+		float scale = 50.f;
+		auto origin	= XMLoadFloat3(&m_cam_pos);
 		auto rot	= XMQuaternionRotationRollPitchYawFromVector(XMLoadFloat3(&m_light_rot));
-		auto view	= XMMatrixLookToLH(XMVectorSet(0,25.0f,0,1), VECTOR_DOWN, VECTOR_FORWARD);
-		auto proj	= XMMatrixOrthographicLH(50,50, 0.1,50);
+		auto view	= XMMatrixLookAtLH(
+			XMVectorAdd(origin,XMVectorScale(XMVector3Rotate(VECTOR_UP,rot),scale*0.5f)),
+			origin,
+			XMVector3Rotate(VECTOR_FORWARD,rot)
+		);
+		auto proj	= XMMatrixOrthographicLH(scale,scale,0,scale);
 
 		XMStoreFloat4x4(&su.view, view);
 		XMStoreFloat4x4(&su.projection, proj);

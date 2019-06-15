@@ -111,14 +111,17 @@ float3 physically(in BSDFIn bsdf)
 
 float3 phong(in BSDFIn bsdf)
 {
-	float NdL = saturate(dot(bsdf.N, bsdf.L));
-	float NdH = saturate(dot(bsdf.N, bsdf.H));
+    float NdL = max(0,dot(bsdf.N, bsdf.L));
+	float NdH = max(0,dot(bsdf.N, bsdf.H));
 
 	float lum		= 0.3*bsdf.albedo.r + 0.6*bsdf.albedo.g + 0.1*bsdf.albedo.b;
 	float3 ctint	= lerp((bsdf.albedo/lum), float3(1, 1, 1), step(0, lum)); //step(a,b) : a less then b
 	float3 spec0	= lerp(bsdf.specular*0.08*lerp(float3(1, 1, 1), ctint, bsdf.specular_tint), bsdf.albedo, bsdf.metallic);
+    
+    float pw = lerp(10000, 1, sqr(bsdf.roughness));
+    float D = (pow(NdH, pw) * (1.0 + pw)) / (2.0 * PI);
 
-	return ((1/PI)*(1-bsdf.metallic)*bsdf.albedo + pow(NdH,lerp(1000,1,bsdf.roughness))*spec0 ) * NdL;
+    return ((1 / PI)*(1 - bsdf.metallic)*bsdf.albedo + D*spec0)*NdL;
 }
 
 float3 hemiAmbient(float3 N, float3 L)
@@ -168,7 +171,7 @@ PSOut main(VSOut psin)
 
     
     float max_depth_slope = max(abs(ddx(shadow_coord.z)), abs(ddy(shadow_coord.z)));
-    float bias = 0.001;
+    float bias = 0.002;
     float slope_scaled_bias = 0.1;
     float depth_bias_clamp = 0.1;
 

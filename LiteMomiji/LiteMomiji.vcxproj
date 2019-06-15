@@ -166,6 +166,9 @@
     <ClCompile Include="Swapchain.cpp" />
     <ClCompile Include="TestEngine.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="GameResources\Shaders\TestShader.json" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

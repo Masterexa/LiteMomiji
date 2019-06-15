@@ -61,6 +61,7 @@ class TestEngine{
 			// Images
 			Microsoft::WRL::ComPtr<ID3D12Resource>	m_tex_ao;
 			Microsoft::WRL::ComPtr<ID3D12Resource>	m_tex_env;
+			Microsoft::WRL::ComPtr<ID3D12Resource>	m_tex_default_white;
 			DXGI_FORMAT	m_tex_ao_fmt;
 			DXGI_FORMAT	m_tex_env_fmt;
 
